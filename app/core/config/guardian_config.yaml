@@ -41,8 +41,6 @@ keyword_filter:
     r: "rồi"
     j: "gì"
 
-  noise_regex_pattern: '[\.\\*_\-~!#\$%\^&\(\)\+=\|\\\\/<>\}\{\[\]:;\x27\"]'
-
   fallback_message: >
     Xin lỗi, câu hỏi của bạn chứa nội dung không phù hợp
     hoặc vi phạm tiêu chuẩn cộng đồng.
@@ -69,9 +67,14 @@ prompt_guard:
 vector_router:
   enabled: true
   provider: "openai"
-  model: "text-embedding-3-small"               # Model tạo vector siêu nhẹ
-  dimensions: 512                               # Ép chiều (giảm chi phí & tăng tốc độ match)
+  model: "text-embedding-3-small"
+  dimensions: 1536                              # Giữ nguyên 1536 chiều để phân biệt tốt "Học phí" vs "Điểm chuẩn"
   similarity_threshold: 0.75                    # Ngưỡng Cosine Similarity (>= 0.75 là tự tin phân loại)
+
+# Validator: Nếu LLM trả intent sai chính tả -> map về fallback_intent
+intent_validator:
+  enabled: true
+  fallback_intent: "KHONG_XAC_DINH"             # Intent mặc định khi LLM trả tên không khớp allowed_intents
 
 semantic_router:
   provider: "groq"

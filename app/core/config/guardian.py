@@ -88,10 +88,6 @@ _kf = _yaml_data.get("keyword_filter", {})
 class KeywordFilterConfig(BaseModel):
     banned_regex_patterns: List[str] = _kf.get("banned_regex_patterns", [])
     teencode_map: Dict[str, str] = _kf.get("teencode_map", {})
-    noise_regex_pattern: str = _kf.get(
-        "noise_regex_pattern",
-        r"[\.\\*_\-~!#\$%\^&\(\)\+=\|\\/<>\}\{\[\]:;'\"]"
-    )
     fallback_message: str = _kf.get(
         "fallback_message",
         "Câu hỏi chứa nội dung không phù hợp."
@@ -126,11 +122,21 @@ class VectorRouterConfig(BaseModel):
     enabled: bool = _vr.get("enabled", True)
     provider: str = _vr.get("provider", "openai")
     model: str = _vr.get("model", "text-embedding-3-small")
-    dimensions: int = _vr.get("dimensions", 512)
+    dimensions: int = _vr.get("dimensions", 1536)
     similarity_threshold: float = Field(
         default=_vr.get("similarity_threshold", 0.75),
         ge=0.0, le=1.0
     )
+
+
+# ============================================================
+# LỚP 3 - Validator: Chống LLM sai chính tả Intent
+# ============================================================
+_iv_val = _yaml_data.get("intent_validator", {})
+
+class IntentValidatorConfig(BaseModel):
+    enabled: bool = _iv_val.get("enabled", True)
+    fallback_intent: str = _iv_val.get("fallback_intent", "KHONG_XAC_DINH")
 
 
 # ============================================================
@@ -174,6 +180,7 @@ class QueryFlowConfig(BaseModel):
     keyword_filter: KeywordFilterConfig = KeywordFilterConfig()
     prompt_guard: PromptGuardConfig = PromptGuardConfig()
     vector_router: VectorRouterConfig = VectorRouterConfig()
+    intent_validator: IntentValidatorConfig = IntentValidatorConfig()
     semantic_router: SemanticRouterConfig = SemanticRouterConfig()
     main_bot: MainBotConfig = MainBotConfig()
 
