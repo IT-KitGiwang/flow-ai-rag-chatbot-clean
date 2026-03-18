@@ -1,24 +1,26 @@
 # app/utils/guardian_utils.py
 # Chứa logic xử lý thực tế cho các lớp bảo vệ (0, 1, 2)
+# Fix: Async concurrent cho 2a & 2b, JSON parsing cho 2b
 
 import re
-from typing import Tuple, Dict
+import json
+import asyncio
+import urllib.request
+import urllib.error
+from typing import Tuple
 from app.core.config import query_flow_config
+
 
 class GuardianService:
     @staticmethod
     def normalize_text(text: str) -> str:
         """Chuẩn hóa văn bản: Chuyển chữ thường, thay thế Teencode/Leetspeak."""
-        # Chuyển về chữ thường
         text = text.lower()
         
-        # Mapping Teencode / Leetspeak
         teencode_map = query_flow_config.keyword_filter.teencode_map
-        # Sắp xếp các key dài hơn trước để tránh thay thế nhầm (VD: 'ko' trước 'k')
         sorted_keys = sorted(teencode_map.keys(), key=len, reverse=True)
         
         for key in sorted_keys:
-            # Chỉ thay thế nếu nó đứng độc lập (word boundary) để tránh sai sót
             text = re.sub(rf'\b{re.escape(key)}\b', teencode_map[key], text)
             
         return text
@@ -53,13 +55,19 @@ class GuardianService:
                 return False, config.fallback_injection
         return True, ""
 
+    # ================================================================
+    # HÀM GỌI API DÙNG CHUNG (Hỗ trợ cả response_format JSON)
+    # ================================================================
     @staticmethod
-    def _call_groq_api(provider: str, model: str, messages: list, temperature: float = 0.0, max_tokens: int = 10) -> str:
-        """Hàm gọi API Groq dùng chung cho cả 2a và 2b."""
-        import json
-        import urllib.request
-        import urllib.error
-        
+    def _call_llm_api(
+        provider: str, 
+        model: str, 
+        messages: list, 
+        temperature: float = 0.0, 
+        max_tokens: int = 10,
+        response_format: str = None
+    ) -> str:
+        """Gọi API LLM (Groq/OpenRouter/OpenAI). Hỗ trợ response_format JSON."""
         api_key = query_flow_config.api_keys.get_key(provider)
         base_url = query_flow_config.api_keys.get_base_url(provider)
         
@@ -79,6 +87,10 @@ class GuardianService:
             "max_tokens": max_tokens
         }
         
+        # Thêm response_format nếu được chỉ định (ép JSON output)
+        if response_format:
+            data["response_format"] = {"type": response_format}
+        
         req = urllib.request.Request(
             url,
             data=json.dumps(data).encode("utf-8"),
@@ -89,15 +101,16 @@ class GuardianService:
             result = json.loads(response.read().decode("utf-8"))
             return result["choices"][0]["message"]["content"].strip()
 
+    # ================================================================
+    # LỚP 2a: Llama 86M - Score-based (Quét nhanh)
+    # ================================================================
     @staticmethod
     def check_layer_2a_prompt_guard_fast(text: str) -> Tuple[bool, str]:
         """LỚP 2a: Llama 86M quét nhanh bằng điểm số."""
-        import urllib.error
-        
         config = query_flow_config.prompt_guard_fast
         
         try:
-            output = GuardianService._call_groq_api(
+            output = GuardianService._call_llm_api(
                 provider=config.provider,
                 model=config.model,
                 messages=[{"role": "user", "content": text}],
@@ -112,7 +125,6 @@ class GuardianService:
                     return False, config.fallback_unsafe
                 return True, ""
             
-            # Score >= 0.9 → Tấn công rõ ràng → CHẶN ngay
             if score >= config.score_threshold:
                 return False, f"{config.fallback_unsafe} (Score: {score:.2%})"
             return True, ""
@@ -125,11 +137,12 @@ class GuardianService:
         except Exception as e:
             return True, f"Bỏ qua 2a (Lỗi: {str(e)})"
 
+    # ================================================================
+    # LỚP 2b: Qwen 7B - Vietnamese JSON check (Quét sâu)
+    # ================================================================
     @staticmethod
     def check_layer_2b_prompt_guard_deep(text: str) -> Tuple[bool, str]:
-        """LỚP 2b: Qwen 7B quét sâu bằng tiếng Việt (SAFE/UNSAFE)."""
-        import urllib.error
-        
+        """LỚP 2b: Qwen 7B quét sâu bằng tiếng Việt. Trả về JSON."""
         config = query_flow_config.prompt_guard_deep
         
         try:
@@ -137,17 +150,25 @@ class GuardianService:
                 {"role": "system", "content": config.system_prompt},
                 {"role": "user", "content": text}
             ]
-            output = GuardianService._call_groq_api(
+            output = GuardianService._call_llm_api(
                 provider=config.provider,
                 model=config.model,
                 messages=messages,
                 temperature=config.temperature,
-                max_tokens=10
+                max_tokens=20,
+                response_format=config.response_format
             )
             print(f"   [Debug 2b] Qwen Guard trả về: '{output}'")
             
-            # Qwen trả về SAFE hoặc UNSAFE
-            if "unsafe" in output.lower():
+            # Parse JSON: {"status": "SAFE"} hoặc {"status": "UNSAFE"}
+            try:
+                result = json.loads(output)
+                status = result.get("status", "").upper()
+            except json.JSONDecodeError:
+                # Fallback: nếu Qwen không trả JSON, kiểm tra text thô
+                status = output.upper()
+            
+            if "UNSAFE" in status:
                 return False, config.fallback_unsafe
             return True, ""
             
@@ -159,9 +180,54 @@ class GuardianService:
         except Exception as e:
             return True, f"Bỏ qua 2b (Lỗi: {str(e)})"
 
+    # ================================================================
+    # LỚP 2 TỔNG: Chạy SONG SONG 2a & 2b (Concurrent)
+    # Ai báo UNSAFE trước thì CHẶN ngay, hủy thằng còn lại
+    # ================================================================
+    @staticmethod
+    async def _run_2a_async(text: str) -> Tuple[bool, str]:
+        """Wrapper async cho 2a (chạy trong thread pool)."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, GuardianService.check_layer_2a_prompt_guard_fast, text
+        )
+
+    @staticmethod
+    async def _run_2b_async(text: str) -> Tuple[bool, str]:
+        """Wrapper async cho 2b (chạy trong thread pool)."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, GuardianService.check_layer_2b_prompt_guard_deep, text
+        )
+
+    @classmethod
+    async def check_layer_2_concurrent(cls, text: str) -> Tuple[bool, str]:
+        """Chạy 2a và 2b SONG SONG. Ai UNSAFE trước thì chặn ngay."""
+        tasks = [
+            asyncio.create_task(cls._run_2a_async(text)),
+            asyncio.create_task(cls._run_2b_async(text)),
+        ]
+        
+        # Chờ cả 2 hoàn thành (gather all)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for i, result in enumerate(results):
+            layer_name = "2a" if i == 0 else "2b"
+            if isinstance(result, Exception):
+                print(f"   ⚠️ Lớp {layer_name} lỗi: {result}")
+                continue
+            is_safe, msg = result
+            if not is_safe:
+                return False, msg
+        
+        return True, ""
+
+    # ================================================================
+    # LUỒNG TỔNG: validate_query (Sync wrapper cho test script)
+    # ================================================================
     @classmethod
     def validate_query(cls, query: str) -> Tuple[bool, str, int]:
-        """Chạy toàn bộ luồng Guardian."""
+        """Chạy toàn bộ luồng Guardian (sync wrapper)."""
         # LỚP 0
         is_l0_ok, msg_l0 = cls.check_layer_0_input_validation(query)
         if not is_l0_ok:
@@ -177,15 +243,9 @@ class GuardianService:
         if not is_l1b_ok:
             return False, msg_l1b, 1
 
-        # LỚP 2a: Llama 86M quét nhanh (Score)
-        is_l2a_ok, msg_l2a = cls.check_layer_2a_prompt_guard_fast(query)
-        if not is_l2a_ok:
-            return False, msg_l2a, 2
-
-        # LỚP 2b: Qwen 7B quét sâu tiếng Việt (SAFE/UNSAFE)
-        is_l2b_ok, msg_l2b = cls.check_layer_2b_prompt_guard_deep(query)
-        if not is_l2b_ok:
-            return False, msg_l2b, 2
+        # LỚP 2: Chạy SONG SONG 2a + 2b
+        is_l2_ok, msg_l2 = asyncio.run(cls.check_layer_2_concurrent(query))
+        if not is_l2_ok:
+            return False, msg_l2, 2
 
         return True, "SAFE", 2
-
