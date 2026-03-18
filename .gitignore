@@ -1,0 +1,45 @@
+# Environments
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Testing & Coverage
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+nosetests.xml
+junit.xml
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Docker (nếu bạn không muốn push các file cấu hình test cục bộ)
+docker-compose.override.yml
+.dockerignore
+
+# Các file XML hoặc log (tránh push nhầm file build xml/log)
+*.log
+*.xml
+!pom.xml      # (chừa lại pom.xml nếu dùng Java Maven)
+!build.xml    # (chừa lại build.xml nếu dùng Ant)
