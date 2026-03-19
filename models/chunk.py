@@ -29,7 +29,7 @@ class ChunkMetadata(BaseModel):
     ├──────────────────────────────────────────────────────────┤
     │ chunk_id        UUID duy nhất (tạo từ Python)           │
     │ source          File nguồn (ThS KDQT.docx)              │
-    │ section_path    Breadcrumb (Thạc sĩ KDQT > XÉT TUYỂN)  │
+    │ section_path    Breadcrumb (Thạc sĩ KDQT > XÉT TUYỂN)   │
     │ section_name    Tên mục (ĐIỀU KIỆN XÉT TUYỂN)           │
     │ program_name    Tên ngành (KINH DOANH QUỐC TẾ)          │
     │ program_level   Trình độ (thac_si / tien_si / dai_hoc)  │

@@ -1,95 +1,81 @@
 """
-Semantic Chunker sử dụng BAAI/bge-m3 Embedding.
-
-Thuật toán:
-  1. Tiền xử lý văn bản → Tách thành Base Blocks (~100 tokens/block)
-  2. Gọi API BGE-M3 (qua OpenRouter) để sinh Embedding cho mỗi block
-     ⚠️ BATCH theo giới hạn 8192 tokens/request để tránh bị reject
-  3. Tính Cosine Similarity giữa các block liền kề
-  4. Similarity ≥ 0.6 (60%) → GỘP blocks thành 1 chunk
-     Similarity < 0.6 (60%) → CẮT chunk tại đây (ranh giới ngữ nghĩa)
-  5. Áp dụng Overlap 100 tokens giữa các chunk liền kề
-  6. Gắn Metadata đầy đủ (chunk_id, content_hash, token_count...)
-
-Thiết kế cho:
-  - Model: BAAI/bge-m3 (1024 dims, multilingual, hỗ trợ tiếng Việt)
-  - Provider: OpenRouter
-  - Token limit: 8192 tokens/request
-  - Overlap: 100 tokens (văn cảnh liên tục, không bị đứt gãy)
+Semantic Chunker — Embedding-based chunking with configurable provider.
+Config: app/core/config/chunker_config.yaml
 """
 
 import json
-import math
-import re
+import os
 import time
-import unicodedata
 import urllib.request
 import urllib.error
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
+import yaml
 
 from models.chunk import ChunkMetadata, ProcessedChunk
+from chunk_Process.chunk_algorithms.utils import (
+    normalize_vietnamese,
+    clean_whitespace,
+    estimate_tokens,
+    split_sentences_vietnamese,
+    is_markdown_table,
+    parse_document_header,
+    lookup_ma_nganh,
+    build_context_prefix,
+)
 
 
 # ================================================================
-# CẤU HÌNH MẶC ĐỊNH
+# YAML CONFIG LOADER
 # ================================================================
-DEFAULT_CONFIG = {
+_CONFIG_PATH = Path(__file__).resolve().parents[2] / "app" / "core" / "config" / "chunker_config.yaml"
+
+# Fallback nếu YAML không tồn tại hoặc thiếu key
+_FALLBACK_CONFIG = {
     "provider": "openrouter",
-    "model": "baai/bge-m3",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "",
     "dimensions": 1024,
-    "similarity_threshold": 0.6,        # 60% — ngưỡng cắt chunk
-    "overlap_tokens": 100,              # 100 tokens overlap giữa 2 chunk liền kề
-    "base_block_tokens": 100,           # Kích thước mỗi Base Block (~100 tokens)
-    "min_chunk_tokens": 50,             # Chunk nhỏ nhất (dưới ngưỡng này → gộp)
-    "max_chunk_tokens": 1500,           # Chunk lớn nhất (~6000 chars)
-    "max_tokens_per_api_call": 7500,    # Giới hạn an toàn cho 1 lần gọi API (< 8192)
-    "api_batch_size": 50,               # Số blocks tối đa gửi 1 batch
-    "api_timeout": 30,                  # Timeout API (giây)
+    "similarity_threshold": 0.6,
+    "overlap_tokens": 100,
+    "base_block_tokens": 100,
+    "min_chunk_tokens": 50,
+    "max_chunk_tokens": 1500,
+    "max_tokens_per_api_call": 6500,
+    "api_batch_size": 50,
+    "api_timeout": 30,
+    "api_max_retries": 3,
+    "api_retry_base_wait": 2,
 }
 
 
-# ================================================================
-# HÀM TIỆN ÍCH
-# ================================================================
-def _normalize_vietnamese(text: str) -> str:
-    """Chuẩn hóa Unicode NFC cho tiếng Việt."""
-    return unicodedata.normalize("NFC", text)
+def _load_chunker_config() -> dict:
+    """Đọc semantic_chunker section từ chunker_config.yaml, merge với fallback."""
+    if _CONFIG_PATH.exists():
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+        yaml_cfg = raw.get("semantic_chunker", {})
+        return {**_FALLBACK_CONFIG, **yaml_cfg}
+    return _FALLBACK_CONFIG.copy()
 
 
-def _clean_whitespace(text: str) -> str:
-    """Xử lý khoảng trắng thừa."""
-    text = re.sub(r"[ \t]+", " ", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
+# Provider → Env var mapping
+_API_KEY_ENV = {
+    "openrouter": "OPENROUTER_API_KEY",
+    "groq": "GROQ_API_KEY",
+}
 
-
-def _estimate_tokens(text: str) -> int:
-    """
-    Ước tính số token cho tiếng Việt.
-    BPE tokenizer xử lý tiếng Việt kém hiệu quả hơn tiếng Anh:
-      ~3.5–4 chars/token (so với ~4–5 chars/token tiếng Anh)
-    Dùng hệ số 3.5 để an toàn (không vượt limit).
-    """
-    return max(1, int(len(text) / 3.5))
-
-
-def _split_sentences_vietnamese(text: str) -> List[str]:
-    """
-    Tách câu tiếng Việt, xử lý dấu câu và xuống dòng.
-    Giữ nguyên logic từ preprocessor.py nhưng không phụ thuộc import.
-    """
-    sentences = re.split(r'(?<=[.!?;])\s+(?=[A-ZÀ-Ỹa-zà-ỹ\d])', text)
-    result = []
-    for sent in sentences:
-        parts = sent.split("\n\n")
-        result.extend(p.strip() for p in parts if p.strip())
-    return result
+# Alias nội bộ
+_normalize_vietnamese = normalize_vietnamese
+_clean_whitespace = clean_whitespace
+_estimate_tokens = estimate_tokens
+_split_sentences_vietnamese = split_sentences_vietnamese
 
 
 def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-    """Tính Cosine Similarity giữa 2 vector."""
+    """Cosine Similarity giữa 2 vector."""
     norm_a = np.linalg.norm(a)
     norm_b = np.linalg.norm(b)
     if norm_a == 0 or norm_b == 0:
@@ -98,39 +84,33 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 
 # ================================================================
-# LỚP CHÍNH: SemanticChunkerBGE
+# LỚP CHÍNH
 # ================================================================
 class SemanticChunkerBGE:
     """
-    Semantic Chunker sử dụng BAAI/bge-m3 Embedding qua OpenRouter.
-
-    Luồng xử lý:
-      Text → Base Blocks → Embedding → Cosine Similarity → Merge/Split → Overlap → Chunks
-
-    Ví dụ sử dụng:
-        chunker = SemanticChunkerBGE(api_key="sk-or-v1-...")
-        chunks = chunker.chunk(text="...", source="tuyensinh2025.docx")
+    Semantic Chunker với config từ YAML.
+    Provider/model được cấu hình trong chunker_config.yaml.
     """
 
     def __init__(
         self,
-        api_key: str,
-        base_url: str = "https://openrouter.ai/api/v1",
+        api_key: str = None,
+        base_url: str = None,
         config: Optional[dict] = None,
     ):
-        """
-        Args:
-            api_key: OpenRouter API key
-            base_url: OpenRouter base URL
-            config: Dict ghi đè cấu hình mặc định (xem DEFAULT_CONFIG)
-        """
-        self.api_key = api_key
-        self.base_url = base_url.rstrip("/")
+        # Load YAML config → merge user overrides
+        yaml_cfg = _load_chunker_config()
+        self.cfg = {**yaml_cfg, **(config or {})}
 
-        # Merge config
-        self.cfg = {**DEFAULT_CONFIG, **(config or {})}
+        # Resolve API key: param > env var > error
+        provider = self.cfg.get("provider", "openrouter")
+        env_key = _API_KEY_ENV.get(provider, "OPENROUTER_API_KEY")
+        self.api_key = api_key or os.environ.get(env_key, "")
 
-        # Thống kê runtime
+        # Resolve base_url: param > yaml > fallback
+        self.base_url = (base_url or self.cfg.get("base_url", "https://openrouter.ai/api/v1")).rstrip("/")
+
+        # Runtime stats
         self.stats = {
             "total_api_calls": 0,
             "total_tokens_sent": 0,
@@ -146,12 +126,21 @@ class SemanticChunkerBGE:
 
         Ưu tiên cắt theo ranh giới câu để giữ nguyên ý nghĩa.
         Nếu 1 câu quá dài → cắt theo ký tự.
+
+        🛡️ TABLE GUARD: Nếu toàn bộ text là Markdown Table → không tách,
+        trả về nguyên 1 block để bảo toàn cấu trúc bảng.
         """
+        # ── TABLE GUARD: Bảo vệ bảng Markdown khỏi bị tách nát ──
+        # Bảng không có dấu chấm câu cuối dòng → split_sentences sẽ thất bại
+        # và hard-cut giữa chừng làm nát hàng/cột.
+        if is_markdown_table(text):
+            return [text.strip()] if text.strip() else []
+
         sentences = _split_sentences_vietnamese(text)
         if not sentences:
             return [text] if text.strip() else []
 
-        target_chars = int(self.cfg["base_block_tokens"] * 3.5)  # ~350 chars/block
+        target_chars = int(self.cfg["base_block_tokens"] * 3.0)  # ~300 chars/block (conservative cho mixed text)
         blocks = []
         current_block = []
         current_len = 0
@@ -219,7 +208,7 @@ class SemanticChunkerBGE:
 
             # Text đơn lẻ vượt limit → cắt bớt (cực hiếm với base_block ~100 tokens)
             if text_tokens > max_tokens:
-                safe_len = int(max_tokens * 3.5)
+                safe_len = int(max_tokens * 3.0)  # Conservative: dùng 3.0 thay vì 3.5 cho mixed text
                 text = text[:safe_len]
                 text_tokens = _estimate_tokens(text)
 
@@ -234,7 +223,15 @@ class SemanticChunkerBGE:
         return all_embeddings
 
     def _send_embedding_batch(self, texts: List[str]) -> List[np.ndarray]:
-        """Gửi 1 batch texts tới API Embedding và trả về list vectors."""
+        """
+        Gửi 1 batch texts tới API Embedding và trả về list vectors.
+
+        Production-safe với Exponential Backoff Retry:
+          - Retry tự động khi gặp HTTP 429 (Rate Limit), 500, 502, 503
+          - Thời gian chờ tăng gấp đôi mỗi lần: 2s → 4s → 8s
+          - Sau 3 lần thất bại → raise RuntimeError
+          - Lỗi 4xx khác (400, 401, 403) → KHÔNG retry (lỗi logic)
+        """
         url = f"{self.base_url}/embeddings"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -247,35 +244,85 @@ class SemanticChunkerBGE:
             "dimensions": self.cfg["dimensions"],
         }
 
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(data).encode("utf-8"),
-            headers=headers,
-            method="POST",
+        max_retries = self.cfg["api_max_retries"]
+        base_wait = self.cfg["api_retry_base_wait"]
+
+        # Mã lỗi HTTP cho phép retry (lỗi tạm thời do server)
+        RETRYABLE_STATUS_CODES = {429, 500, 502, 503}
+
+        last_error = None
+
+        for attempt in range(1, max_retries + 1):
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(data).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+
+            start_time = time.time()
+            try:
+                with urllib.request.urlopen(req, timeout=self.cfg["api_timeout"]) as resp:
+                    result = json.loads(resp.read().decode("utf-8"))
+
+                elapsed = time.time() - start_time
+
+                # Cập nhật stats
+                self.stats["total_api_calls"] += 1
+                self.stats["total_tokens_sent"] += sum(_estimate_tokens(t) for t in texts)
+                self.stats["total_time_embedding"] += elapsed
+
+                if attempt > 1:
+                    self.stats.setdefault("total_retries", 0)
+                    self.stats["total_retries"] += attempt - 1
+
+                # Parse embeddings (API trả về sorted by index)
+                raw_data = sorted(result["data"], key=lambda x: x["index"])
+                embeddings = [
+                    np.array(item["embedding"], dtype=np.float32)
+                    for item in raw_data
+                ]
+                return embeddings
+
+            except urllib.error.HTTPError as e:
+                error_body = ""
+                try:
+                    error_body = e.read().decode("utf-8")[:500]
+                except Exception:
+                    error_body = "(không đọc được response body)"
+
+                last_error = e
+
+                # Chỉ retry với lỗi tạm thời (429, 500, 502, 503)
+                if e.code in RETRYABLE_STATUS_CODES and attempt < max_retries:
+                    wait_time = base_wait * (2 ** (attempt - 1))  # 2s, 4s, 8s
+                    time.sleep(wait_time)
+                    continue
+
+                # Lỗi không thể retry (400, 401, 403, 404) hoặc hết lượt retry
+                raise RuntimeError(
+                    f"Embedding API Error ({e.code}) sau {attempt} lần thử: "
+                    f"{error_body}"
+                ) from e
+
+            except (urllib.error.URLError, OSError) as e:
+                # Lỗi kết nối mạng (DNS, timeout, connection refused)
+                last_error = e
+
+                if attempt < max_retries:
+                    wait_time = base_wait * (2 ** (attempt - 1))
+                    time.sleep(wait_time)
+                    continue
+
+                raise RuntimeError(
+                    f"Network Error sau {attempt} lần thử: {str(e)}"
+                ) from e
+
+        # Fallback cuối cùng (không bao giờ tới đây nếu logic đúng)
+        raise RuntimeError(
+            f"Embedding API thất bại sau {max_retries} lần retry. "
+            f"Lỗi cuối: {str(last_error)}"
         )
-
-        start_time = time.time()
-        try:
-            with urllib.request.urlopen(req, timeout=self.cfg["api_timeout"]) as resp:
-                result = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8")[:500]
-            raise RuntimeError(
-                f"Embedding API Error ({e.code}): {error_body}"
-            ) from e
-
-        elapsed = time.time() - start_time
-
-        # Cập nhật stats
-        self.stats["total_api_calls"] += 1
-        self.stats["total_tokens_sent"] += sum(_estimate_tokens(t) for t in texts)
-        self.stats["total_time_embedding"] += elapsed
-
-        # Parse embeddings (API trả về sorted by index)
-        raw_data = sorted(result["data"], key=lambda x: x["index"])
-        embeddings = [np.array(item["embedding"], dtype=np.float32) for item in raw_data]
-
-        return embeddings
 
     # ================================================================
     # BƯỚC 3: TÌM RANH GIỚI CẮT CHUNK (Similarity Drop)
@@ -324,7 +371,7 @@ class SemanticChunkerBGE:
         
         min_chunk_tokens = self.cfg["min_chunk_tokens"]
         max_chunk_tokens = self.cfg["max_chunk_tokens"]
-        max_chunk_chars = int(max_chunk_tokens * 3.5)
+        max_chunk_chars = int(max_chunk_tokens * 3.0)  # Conservative cho mixed Việt-Anh
 
         boundary_starts = [b[0] for b in boundaries]
         if 0 not in boundary_starts:
@@ -387,33 +434,67 @@ class SemanticChunkerBGE:
         """
         Luồng xử lý hoàn chỉnh Semantic Chunking.
 
+        Tự động phân tích Header trước `-start-` để trích xuất:
+          - valid_from, program_level, academic_year, header_context
+
         Args:
-            text: Văn bản thô cần chunking
+            text: Văn bản thô cần chunking (có thể chứa Header + `-start-`)
             source: Tên file nguồn (VD: "tuyensinh2025.docx")
-            metadata_extra: Dict metadata bổ sung (program_name, academic_year...)
+            metadata_extra: Dict metadata bổ sung, ghi đè auto-parsed values
 
         Returns:
             List[ProcessedChunk] - Các chunk đã xử lý, sẵn sàng Embedding & Insert DB
         """
-        # 1. Tiền xử lý
-        text = _normalize_vietnamese(text)
-        text = _clean_whitespace(text)
+        # 0. Auto-parse Header metadata
+        parsed = parse_document_header(text)
+        content = parsed["content"]
 
-        if not text.strip():
+        auto_meta = {}
+        if parsed["valid_from"]:
+            auto_meta["valid_from"] = parsed["valid_from"]
+        if parsed["program_level"]:
+            auto_meta["program_level"] = parsed["program_level"]
+        if parsed["academic_year"]:
+            auto_meta["academic_year"] = parsed["academic_year"]
+        if parsed["header_context"]:
+            auto_meta.setdefault("extra", {})["header_context"] = parsed["header_context"]
+
+        extra = metadata_extra or {}
+        program_name = extra.get("program_name")
+        program_level = extra.get("program_level") or auto_meta.get("program_level")
+        if program_name and program_level:
+            ma_nganh = lookup_ma_nganh(program_level, program_name)
+            if ma_nganh:
+                auto_meta["ma_nganh"] = ma_nganh
+
+        merged_extra = {**auto_meta, **extra}
+
+        # Prefix cho mỗi chunk con (để bơm context parent vào)
+        section_path = extra.get("section_path", "")
+        context_prefix = build_context_prefix(section_path, source, extra=merged_extra)
+
+        # 1. Tiền xử lý (chỉ strip prefix gốc nếu parent vô tình truyền text đã gắn prefix xuống)
+        if len(content) > len(context_prefix) and content.startswith(context_prefix):
+            content = content[len(context_prefix):].strip()
+
+        content = _normalize_vietnamese(content)
+        content = _clean_whitespace(content)
+
+        if not content.strip():
             return []
 
         # 2. Tách thành Base Blocks (~100 tokens/block)
-        blocks = self._split_into_base_blocks(text)
+        blocks = self._split_into_base_blocks(content)
 
         if not blocks:
             return []
 
         # 3. Sinh Embedding cho các blocks
-        # Nếu chỉ có 1 block → không cần tính similarity
         if len(blocks) == 1:
-            extra = metadata_extra or {}
-            meta = ChunkMetadata(source=source, chunk_index=1, total_chunks_in_section=1, **extra)
-            return [ProcessedChunk(content=blocks[0], metadata=meta)]
+            meta = ChunkMetadata(source=source, chunk_index=1, total_chunks_in_section=1, **merged_extra)
+            # Chèn prefix vào chunk duy nhất
+            final_content = context_prefix + blocks[0] if not blocks[0].startswith(context_prefix) else blocks[0]
+            return [ProcessedChunk(content=final_content, metadata=meta)]
 
         embeddings = self._call_embedding_api(blocks)
 
@@ -426,7 +507,6 @@ class SemanticChunkerBGE:
         # 6. Tạo ProcessedChunk objects với metadata đầy đủ
         total = len(raw_chunks)
         processed_chunks = []
-        extra = metadata_extra or {}
 
         for idx, raw in enumerate(raw_chunks, 1):
             meta = ChunkMetadata(
@@ -434,10 +514,15 @@ class SemanticChunkerBGE:
                 chunk_index=idx,
                 total_chunks_in_section=total,
                 overlap_tokens=raw["overlap_tokens"],
-                **extra,
+                **merged_extra,
             )
+            # Gắn lại prefix cho từng chunk mới tách
+            chunk_content = raw["content"]
+            if not chunk_content.startswith(context_prefix):
+                chunk_content = context_prefix + chunk_content
+            
             processed_chunks.append(
-                ProcessedChunk(content=raw["content"], metadata=meta)
+                ProcessedChunk(content=chunk_content, metadata=meta)
             )
 
         return processed_chunks
@@ -455,27 +540,54 @@ class SemanticChunkerBGE:
         Fallback chunking (không cần API Embedding).
         Cắt theo kích thước cố định + overlap câu.
         Dùng khi API BGE-M3 bị lỗi hoặc không có kết nối mạng.
-        """
-        text = _normalize_vietnamese(text)
-        text = _clean_whitespace(text)
 
-        if not text.strip():
+        Tự động phân tích Header nếu có `-start-`.
+        """
+        # Auto-parse Header
+        parsed = parse_document_header(text)
+        content = parsed["content"]
+
+        auto_meta = {}
+        if parsed["valid_from"]:
+            auto_meta["valid_from"] = parsed["valid_from"]
+        if parsed["program_level"]:
+            auto_meta["program_level"] = parsed["program_level"]
+        if parsed["academic_year"]:
+            auto_meta["academic_year"] = parsed["academic_year"]
+        if parsed["header_context"]:
+            auto_meta.setdefault("extra", {})["header_context"] = parsed["header_context"]
+
+        extra = metadata_extra or {}
+        merged_extra = {**auto_meta, **extra}
+
+        # Tạo context prefix
+        section_path = extra.get("section_path", "")
+        context_prefix = build_context_prefix(section_path, source, extra=merged_extra)
+
+        if len(content) > len(context_prefix) and content.startswith(context_prefix):
+            content = content[len(context_prefix):].strip()
+
+        content = _normalize_vietnamese(content)
+        content = _clean_whitespace(content)
+
+        if not content.strip():
             return []
 
-        sentences = _split_sentences_vietnamese(text)
+        sentences = _split_sentences_vietnamese(content)
         target_chars = int(self.cfg["max_chunk_tokens"] * 3.5)
         overlap_sents = 2  # Overlap 2 câu cuối
 
         chunks = []
         current = []
         current_len = 0
-        extra = metadata_extra or {}
 
         for sent in sentences:
             if current_len + len(sent) > target_chars and current:
-                content = " ".join(current)
-                meta = ChunkMetadata(source=source, **extra)
-                chunks.append(ProcessedChunk(content=content, metadata=meta))
+                chunk_content = " ".join(current)
+                if not chunk_content.startswith(context_prefix):
+                    chunk_content = context_prefix + chunk_content
+                meta = ChunkMetadata(source=source, **merged_extra)
+                chunks.append(ProcessedChunk(content=chunk_content, metadata=meta))
 
                 # Overlap: giữ lại 2 câu cuối
                 current = current[-overlap_sents:]
@@ -486,9 +598,11 @@ class SemanticChunkerBGE:
 
         # Chunk cuối cùng
         if current:
-            content = " ".join(current)
-            meta = ChunkMetadata(source=source, **extra)
-            chunks.append(ProcessedChunk(content=content, metadata=meta))
+            chunk_content = " ".join(current)
+            if not chunk_content.startswith(context_prefix):
+                chunk_content = context_prefix + chunk_content
+            meta = ChunkMetadata(source=source, **merged_extra)
+            chunks.append(ProcessedChunk(content=chunk_content, metadata=meta))
 
         # Cập nhật chunk_index
         for i, c in enumerate(chunks, 1):
