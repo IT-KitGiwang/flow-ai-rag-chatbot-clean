@@ -97,7 +97,7 @@ class GuardianService:
             headers=headers,
             method="POST"
         )
-        with urllib.request.urlopen(req) as response:
+        with urllib.request.urlopen(req, timeout=10) as response:
             result = json.loads(response.read().decode("utf-8"))
             return result["choices"][0]["message"]["content"].strip()
 
@@ -202,23 +202,23 @@ class GuardianService:
 
     @classmethod
     async def check_layer_2_concurrent(cls, text: str) -> Tuple[bool, str]:
-        """Chạy 2a và 2b SONG SONG. Ai UNSAFE trước thì chặn ngay."""
+        """Chạy 2a và 2b SONG SONG. Ai UNSAFE trước thì chặn ngay, hủy task còn lại."""
         tasks = [
             asyncio.create_task(cls._run_2a_async(text)),
             asyncio.create_task(cls._run_2b_async(text)),
         ]
         
-        # Chờ cả 2 hoàn thành (gather all)
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        for i, result in enumerate(results):
-            layer_name = "2a" if i == 0 else "2b"
-            if isinstance(result, Exception):
-                print(f"   ⚠️ Lớp {layer_name} lỗi: {result}")
-                continue
-            is_safe, msg = result
-            if not is_safe:
-                return False, msg
+        # as_completed: task nào xong trước xử lý trước
+        for future in asyncio.as_completed(tasks):
+            try:
+                is_safe, msg = await future
+                if not is_safe:
+                    # Chặn ngay lập tức và hủy task còn lại
+                    for t in tasks:
+                        t.cancel()
+                    return False, msg
+            except Exception as e:
+                print(f"   ⚠️ Lớp Guard lỗi: {e}")
         
         return True, ""
 
