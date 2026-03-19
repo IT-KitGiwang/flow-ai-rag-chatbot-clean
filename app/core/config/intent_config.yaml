@@ -41,6 +41,9 @@ semantic_router:
     - "HOC_PHI_HOC_BONG"
     - "THU_TUC_HANH_CHINH"
 
+    # --- NHÓM 1.5: YÊU CẦU MẪU ĐƠN (→ FormAgent, KHÔNG qua RAG/VectorDB) ---
+    - "TAO_MAU_DON"
+
     # --- NHÓM 2: TRUYỀN THÔNG & THƯƠNG HIỆU (Gọi RAG kèm Prompt khen trường) ---
     - "THANH_TICH_UFM"
     - "DOI_SONG_SINH_VIEN"
@@ -69,10 +72,13 @@ semantic_router:
 
     HƯỚNG DẪN PHÂN LOẠI CHI TIẾT:
     1. Nhóm Tìm kiếm thông tin: 
-      - THONG_TIN_TUYEN_SINH (Điểm chuẩn, chỉ tiêu, khối thi, phương thức xét tuyển)
-      - CHUONG_TRINH_DAO_TAO (Môn học, tín chỉ, chuẩn đầu ra, chuyên ngành)
-      - HOC_PHI_HOC_BONG (Học phí, chính sách vay vốn, học bổng)
+      - THONG_TIN_TUYEN_SINH (Điểm chuẩn, chỉ tiêu, khối thi, phương thức xét tuyển, điều kiện, hồ sơ)
+      - CHUONG_TRINH_DAO_TAO (Môn học, tín chỉ, chuẩn đầu ra, chuyên ngành, thời gian đào tạo)
+      - HOC_PHI_HOC_BONG (Học phí, chính sách vay vốn, học bổng, ưu đãi học phí)
       - THU_TUC_HANH_CHINH (Bảo lưu, rút hồ sơ, nhập học, nội quy)
+
+    1.5. Nhóm Yêu cầu Mẫu đơn / Biểu mẫu:
+      - TAO_MAU_DON (Xin mẫu đơn, tải đơn đăng ký, giấy cam đoan, mẫu đề cương, file word điền thông tin. Ví dụ: "Cho em đơn đăng ký tiến sĩ", "Tải mẫu đơn thạc sĩ ở đâu?", "Gửi em giấy cam đoan")
 
     2. Nhóm Trải nghiệm & Tương lai:
       - THANH_TICH_UFM (Chất lượng giảng dạy, uy tín trường)

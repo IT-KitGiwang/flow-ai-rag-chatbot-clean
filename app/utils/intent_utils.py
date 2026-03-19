@@ -187,6 +187,8 @@ class IntentService:
         # Xác định action
         if fallback_msg:
             action = "BLOCK_FALLBACK"       # Nhóm 4: Chặn + Trả fallback
+        elif validated_intent == "TAO_MAU_DON":
+            action = "FORM_AGENT"           # Nhóm 1.5: Route sang FormAgent (không qua RAG)
         elif validated_intent == "CHAO_HOI":
             action = "GREETING"             # Nhóm 5: Chào hỏi
         elif validated_intent == "KHONG_XAC_DINH":

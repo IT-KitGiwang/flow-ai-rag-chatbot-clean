@@ -36,16 +36,16 @@ _CONFIG_PATH = Path(__file__).resolve().parents[2] / "app" / "core" / "config" /
 _FALLBACK_CONFIG = {
     "provider": "openrouter",
     "base_url": "https://openrouter.ai/api/v1",
-    "model": "",
+    "model": "baai/bge-m3",
     "dimensions": 1024,
-    "similarity_threshold": 0.6,
-    "overlap_tokens": 100,
+    "similarity_threshold": 0.55,
+    "overlap_tokens": 80,
     "base_block_tokens": 100,
     "min_chunk_tokens": 50,
-    "max_chunk_tokens": 1500,
+    "max_chunk_tokens": 800,
     "max_tokens_per_api_call": 6500,
-    "api_batch_size": 50,
-    "api_timeout": 30,
+    "api_batch_size": 40,
+    "api_timeout": 45,
     "api_max_retries": 3,
     "api_retry_base_wait": 2,
 }
@@ -205,6 +205,10 @@ class SemanticChunkerBGE:
                 all_embeddings.extend(embeddings)
                 current_batch = []
                 current_batch_tokens = 0
+                
+                # Delay tránh Rate Limit (RPS/RPM) của API provider
+                import time
+                time.sleep(0.5)
 
             # Text đơn lẻ vượt limit → cắt bớt (cực hiếm với base_block ~100 tokens)
             if text_tokens > max_tokens:
