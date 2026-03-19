@@ -1,0 +1,63 @@
+# ============================================================
+# CHUNKER CONFIG (Non-sensitive settings)
+# File này chứa config cho Semantic Chunker & Hierarchical Chunker
+# API key lấy từ env: OPENROUTER_API_KEY, GROQ_API_KEY
+# ============================================================
+
+# ----------------------------------------------------------
+# SEMANTIC CHUNKER — Embedding Model
+# Đổi provider + model tại đây để switch dịch vụ
+# ----------------------------------------------------------
+semantic_chunker:
+  # Provider: openrouter | groq
+  provider: "openrouter"
+  base_url: "https://openrouter.ai/api/v1"
+  model: "baai/bge-m3"                                  # ← Điền model tại đây (VD: baai/bge-m3)
+  dimensions: 1024
+
+  # Ngưỡng chunking
+  similarity_threshold: 0.6                  # Cosine < 0.6 → cắt chunk
+  overlap_tokens: 100                        # Tokens overlap giữa 2 chunk liền kề
+  base_block_tokens: 100                     # Kích thước 1 Base Block (~100 tokens)
+  min_chunk_tokens: 50                       # Chunk nhỏ nhất (dưới → gộp)
+  max_chunk_tokens: 1500                     # Chunk lớn nhất (~6000 chars)
+
+  # API tuning
+  max_tokens_per_api_call: 6500              # Giới hạn token/request
+  api_batch_size: 50                         # Số blocks tối đa 1 batch
+  api_timeout: 30                            # Timeout (giây)
+  api_max_retries: 3                         # Retry khi lỗi tạm thời
+  api_retry_base_wait: 2                     # Base wait (giây), nhân đôi mỗi retry
+
+# ----------------------------------------------------------
+# Cấu hình dự phòng cho Groq (uncomment để dùng)
+# ----------------------------------------------------------
+# semantic_chunker:
+#   provider: "groq"
+#   base_url: "https://api.groq.com/openai/v1"
+#   model: ""                                # ← Điền model Groq tại đây
+#   dimensions: 1024
+#   similarity_threshold: 0.6
+#   overlap_tokens: 100
+#   base_block_tokens: 100
+#   min_chunk_tokens: 50
+#   max_chunk_tokens: 1500
+#   max_tokens_per_api_call: 6500
+#   api_batch_size: 50
+#   api_timeout: 30
+#   api_max_retries: 3
+#   api_retry_base_wait: 2
+
+# ----------------------------------------------------------
+# HIERARCHICAL CHUNKER — Cấu trúc heading
+# ----------------------------------------------------------
+hierarchical_chunker:
+  min_parent_tokens: 100
+  max_parent_tokens: 2000
+  min_child_tokens: 50
+  max_child_tokens: 500
+  overlap_tokens: 100
+  chars_per_token: 3.5
+  merge_threshold_tokens: 20
+  max_heading_depth: 4
+  context_prefix: true

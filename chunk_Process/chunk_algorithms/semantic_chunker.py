@@ -1,30 +1,18 @@
 """
-Semantic Chunker sử dụng BAAI/bge-m3 Embedding.
-
-Thuật toán:
-  1. Tiền xử lý văn bản → Tách thành Base Blocks (~100 tokens/block)
-  2. Gọi API BGE-M3 (qua OpenRouter) để sinh Embedding cho mỗi block
-     ⚠️ BATCH theo giới hạn 8192 tokens/request để tránh bị reject
-  3. Tính Cosine Similarity giữa các block liền kề
-  4. Similarity ≥ 0.6 (60%) → GỘP blocks thành 1 chunk
-     Similarity < 0.6 (60%) → CẮT chunk tại đây (ranh giới ngữ nghĩa)
-  5. Áp dụng Overlap 100 tokens giữa các chunk liền kề
-  6. Gắn Metadata đầy đủ (chunk_id, content_hash, token_count...)
-
-Thiết kế cho:
-  - Model: BAAI/bge-m3 (1024 dims, multilingual, hỗ trợ tiếng Việt)
-  - Provider: OpenRouter
-  - Token limit: 8192 tokens/request
-  - Overlap: 100 tokens (văn cảnh liên tục, không bị đứt gãy)
+Semantic Chunker — Embedding-based chunking with configurable provider.
+Config: app/core/config/chunker_config.yaml
 """
 
 import json
+import os
 import time
 import urllib.request
 import urllib.error
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
+import yaml
 
 from models.chunk import ChunkMetadata, ProcessedChunk
 from chunk_Process.chunk_algorithms.utils import (
@@ -35,33 +23,51 @@ from chunk_Process.chunk_algorithms.utils import (
     is_markdown_table,
     parse_document_header,
     lookup_ma_nganh,
+    build_context_prefix,
 )
 
 
 # ================================================================
-# CẤU HÌNH MẶC ĐỊNH
+# YAML CONFIG LOADER
 # ================================================================
-DEFAULT_CONFIG = {
+_CONFIG_PATH = Path(__file__).resolve().parents[2] / "app" / "core" / "config" / "chunker_config.yaml"
+
+# Fallback nếu YAML không tồn tại hoặc thiếu key
+_FALLBACK_CONFIG = {
     "provider": "openrouter",
-    "model": "baai/bge-m3",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "",
     "dimensions": 1024,
-    "similarity_threshold": 0.6,        # 60% — ngưỡng cắt chunk
-    "overlap_tokens": 100,              # 100 tokens overlap giữa 2 chunk liền kề
-    "base_block_tokens": 100,           # Kích thước mỗi Base Block (~100 tokens)
-    "min_chunk_tokens": 50,             # Chunk nhỏ nhất (dưới ngưỡng này → gộp)
-    "max_chunk_tokens": 1500,           # Chunk lớn nhất (~6000 chars)
-    "max_tokens_per_api_call": 6500,    # Giới hạn an toàn (hạ từ 7500 → 6500 để tạo vùng đệm)
-    "api_batch_size": 50,               # Số blocks tối đa gửi 1 batch
-    "api_timeout": 30,                  # Timeout API (giây)
-    "api_max_retries": 3,               # Số lần retry tối đa khi API lỗi tạm thời
-    "api_retry_base_wait": 2,           # Thời gian chờ cơ bản (giây) — nhân đôi mỗi lần retry
+    "similarity_threshold": 0.6,
+    "overlap_tokens": 100,
+    "base_block_tokens": 100,
+    "min_chunk_tokens": 50,
+    "max_chunk_tokens": 1500,
+    "max_tokens_per_api_call": 6500,
+    "api_batch_size": 50,
+    "api_timeout": 30,
+    "api_max_retries": 3,
+    "api_retry_base_wait": 2,
 }
 
 
-# ================================================================
-# HÀM TIỆN ÍCH — (hàm chung đã chuyển sang utils.py)
-# ================================================================
-# Alias nội bộ để không phá vỡ các call hiện có trong class
+def _load_chunker_config() -> dict:
+    """Đọc semantic_chunker section từ chunker_config.yaml, merge với fallback."""
+    if _CONFIG_PATH.exists():
+        with open(_CONFIG_PATH, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f) or {}
+        yaml_cfg = raw.get("semantic_chunker", {})
+        return {**_FALLBACK_CONFIG, **yaml_cfg}
+    return _FALLBACK_CONFIG.copy()
+
+
+# Provider → Env var mapping
+_API_KEY_ENV = {
+    "openrouter": "OPENROUTER_API_KEY",
+    "groq": "GROQ_API_KEY",
+}
+
+# Alias nội bộ
 _normalize_vietnamese = normalize_vietnamese
 _clean_whitespace = clean_whitespace
 _estimate_tokens = estimate_tokens
@@ -69,7 +75,7 @@ _split_sentences_vietnamese = split_sentences_vietnamese
 
 
 def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-    """Tính Cosine Similarity giữa 2 vector."""
+    """Cosine Similarity giữa 2 vector."""
     norm_a = np.linalg.norm(a)
     norm_b = np.linalg.norm(b)
     if norm_a == 0 or norm_b == 0:
@@ -78,39 +84,33 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
 
 
 # ================================================================
-# LỚP CHÍNH: SemanticChunkerBGE
+# LỚP CHÍNH
 # ================================================================
 class SemanticChunkerBGE:
     """
-    Semantic Chunker sử dụng BAAI/bge-m3 Embedding qua OpenRouter.
-
-    Luồng xử lý:
-      Text → Base Blocks → Embedding → Cosine Similarity → Merge/Split → Overlap → Chunks
-
-    Ví dụ sử dụng:
-        chunker = SemanticChunkerBGE(api_key="sk-or-v1-...")
-        chunks = chunker.chunk(text="...", source="tuyensinh2025.docx")
+    Semantic Chunker với config từ YAML.
+    Provider/model được cấu hình trong chunker_config.yaml.
     """
 
     def __init__(
         self,
-        api_key: str,
-        base_url: str = "https://openrouter.ai/api/v1",
+        api_key: str = None,
+        base_url: str = None,
         config: Optional[dict] = None,
     ):
-        """
-        Args:
-            api_key: OpenRouter API key
-            base_url: OpenRouter base URL
-            config: Dict ghi đè cấu hình mặc định (xem DEFAULT_CONFIG)
-        """
-        self.api_key = api_key
-        self.base_url = base_url.rstrip("/")
+        # Load YAML config → merge user overrides
+        yaml_cfg = _load_chunker_config()
+        self.cfg = {**yaml_cfg, **(config or {})}
 
-        # Merge config
-        self.cfg = {**DEFAULT_CONFIG, **(config or {})}
+        # Resolve API key: param > env var > error
+        provider = self.cfg.get("provider", "openrouter")
+        env_key = _API_KEY_ENV.get(provider, "OPENROUTER_API_KEY")
+        self.api_key = api_key or os.environ.get(env_key, "")
 
-        # Thống kê runtime
+        # Resolve base_url: param > yaml > fallback
+        self.base_url = (base_url or self.cfg.get("base_url", "https://openrouter.ai/api/v1")).rstrip("/")
+
+        # Runtime stats
         self.stats = {
             "total_api_calls": 0,
             "total_tokens_sent": 0,
@@ -469,7 +469,14 @@ class SemanticChunkerBGE:
 
         merged_extra = {**auto_meta, **extra}
 
-        # 1. Tiền xử lý
+        # Prefix cho mỗi chunk con (để bơm context parent vào)
+        section_path = extra.get("section_path", "")
+        context_prefix = build_context_prefix(section_path, source, extra=merged_extra)
+
+        # 1. Tiền xử lý (chỉ strip prefix gốc nếu parent vô tình truyền text đã gắn prefix xuống)
+        if len(content) > len(context_prefix) and content.startswith(context_prefix):
+            content = content[len(context_prefix):].strip()
+
         content = _normalize_vietnamese(content)
         content = _clean_whitespace(content)
 
@@ -485,7 +492,9 @@ class SemanticChunkerBGE:
         # 3. Sinh Embedding cho các blocks
         if len(blocks) == 1:
             meta = ChunkMetadata(source=source, chunk_index=1, total_chunks_in_section=1, **merged_extra)
-            return [ProcessedChunk(content=blocks[0], metadata=meta)]
+            # Chèn prefix vào chunk duy nhất
+            final_content = context_prefix + blocks[0] if not blocks[0].startswith(context_prefix) else blocks[0]
+            return [ProcessedChunk(content=final_content, metadata=meta)]
 
         embeddings = self._call_embedding_api(blocks)
 
@@ -507,8 +516,13 @@ class SemanticChunkerBGE:
                 overlap_tokens=raw["overlap_tokens"],
                 **merged_extra,
             )
+            # Gắn lại prefix cho từng chunk mới tách
+            chunk_content = raw["content"]
+            if not chunk_content.startswith(context_prefix):
+                chunk_content = context_prefix + chunk_content
+            
             processed_chunks.append(
-                ProcessedChunk(content=raw["content"], metadata=meta)
+                ProcessedChunk(content=chunk_content, metadata=meta)
             )
 
         return processed_chunks
@@ -546,6 +560,13 @@ class SemanticChunkerBGE:
         extra = metadata_extra or {}
         merged_extra = {**auto_meta, **extra}
 
+        # Tạo context prefix
+        section_path = extra.get("section_path", "")
+        context_prefix = build_context_prefix(section_path, source, extra=merged_extra)
+
+        if len(content) > len(context_prefix) and content.startswith(context_prefix):
+            content = content[len(context_prefix):].strip()
+
         content = _normalize_vietnamese(content)
         content = _clean_whitespace(content)
 
@@ -563,6 +584,8 @@ class SemanticChunkerBGE:
         for sent in sentences:
             if current_len + len(sent) > target_chars and current:
                 chunk_content = " ".join(current)
+                if not chunk_content.startswith(context_prefix):
+                    chunk_content = context_prefix + chunk_content
                 meta = ChunkMetadata(source=source, **merged_extra)
                 chunks.append(ProcessedChunk(content=chunk_content, metadata=meta))
 
@@ -576,6 +599,8 @@ class SemanticChunkerBGE:
         # Chunk cuối cùng
         if current:
             chunk_content = " ".join(current)
+            if not chunk_content.startswith(context_prefix):
+                chunk_content = context_prefix + chunk_content
             meta = ChunkMetadata(source=source, **merged_extra)
             chunks.append(ProcessedChunk(content=chunk_content, metadata=meta))
 

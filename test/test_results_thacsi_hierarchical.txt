@@ -91,7 +91,14 @@ Nguồn dữ liệu: E:\UFM - THƯƠNG MẠI\ufm_admission_bot\data\unstructured
    ## Về việc tuyển sinh trình độ tiến sĩ đợt 1 năm 2026
    [Nguồn: tuyển sinh trình độ tiến sĩ đợt 1 năm 2026.md]
    [Mục: 3. Điều kiện dự tuyển]
+    Người dự tuyển đào tạo trình độ tiến sĩ phải đáp ứng các điều kiện nào về bằng tốt nghiệp ?
+
+ a) Bằng tốt nghiệp trình độ đại học trở lên do một cơ sở đào tạo nước ngoài, phân hiệu của cơ sở đào tạo nước ngoài ở Việt Nam hoặc cơ sở đào tạo của Việt Nam cấp cho người học toàn thời gian bằng tiếng nước ngoài; nếu bằng tốt nghiệp đại học hay thạc sĩ do cơ sở đào tạo nước ngoài cấp phải được công nhận văn bằng theo quy định hiện hành tại thời điểm dự tuyển;
    
+   b) Bằng tốt nghiệp trình độ đại học ngành ngôn ngữ tiếng nước ngoài do các cơ sở đào tạo của Việt Nam cấp;
+
+   f) điều a và điều b chỉ áp dụng cho phụ nữ
+
    Người dự tuyển đào tạo trình độ tiến sĩ phải đáp ứng các điều kiện sau:
    
    3.1.Yêu cầu chung đối với người dự tuyển:
