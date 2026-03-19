@@ -21,6 +21,7 @@ from ingestion.ingest_structured import run_ingestion as run_structured
 def main():
     parser = argparse.ArgumentParser(description="Chạy nạp toàn bộ dữ liệu vào VectorDB (Full Pipeline)")
     parser.add_argument("--rebuild", action="store_true", help="Xóa sạch dữ liệu cũ trong DB trước khi nạp lại")
+    parser.add_argument("--fallback", action="store_true", help="Chạy ở chế độ Fallback (cắt chay, không gọi API Embedding)")
     args = parser.parse_args()
 
     start_time = time.time()
@@ -38,7 +39,7 @@ def main():
         run_markdown(
             rebuild=args.rebuild,
             dry_run=False,
-            use_fallback=False  # Dùng API thật để đẩy Embedding
+            use_fallback=args.fallback
         )
     except Exception as e:
         print(f"\n❌ Lỗi nghiêm trọng ở Markdown Pipeline: {e}")
@@ -55,7 +56,7 @@ def main():
         run_structured(
             rebuild=args.rebuild,
             dry_run=False,
-            use_fallback=False  # Dùng API thật để đẩy Embedding
+            use_fallback=args.fallback
         )
     except Exception as e:
         print(f"\n❌ Lỗi nghiêm trọng ở Structured Pipeline: {e}")
