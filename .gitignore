@@ -35,9 +35,12 @@ junit.xml
 *.swo
 .DS_Store
 
-# Docker (nếu bạn không muốn push các file cấu hình test cục bộ)
+# Docker
 docker-compose.override.yml
-.dockerignore
+
+# Database backups (chứa .sql dump — không push lên Git)
+database/backups/*.sql
+database/backups/*.gz
 
 # Các file XML hoặc log (tránh push nhầm file build xml/log)
 *.log

@@ -1,0 +1,27 @@
+# ============================================================
+# UFM Admission Bot — Python Dependencies
+# ============================================================
+
+# --- Web Framework ---
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# --- Database (PostgreSQL + pgvector) ---
+psycopg2-binary>=2.9.9
+asyncpg>=0.29.0
+sqlalchemy>=2.0.23
+
+# --- AI / ML ---
+numpy>=1.24.0
+pydantic>=2.5.0
+
+# --- Config ---
+pyyaml>=6.0.1
+python-dotenv>=1.0.0
+
+# --- HTTP Client ---
+httpx>=0.25.0
+
+# --- LangGraph (khi cần) ---
+# langgraph>=0.0.40
+# langchain>=0.1.0
