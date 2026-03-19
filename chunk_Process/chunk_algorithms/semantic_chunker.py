@@ -30,7 +30,7 @@ from chunk_Process.chunk_algorithms.utils import (
 # ================================================================
 # YAML CONFIG LOADER
 # ================================================================
-_CONFIG_PATH = Path(__file__).resolve().parents[2] / "app" / "core" / "config" / "chunker_config.yaml"
+_CONFIG_PATH = Path(__file__).resolve().parents[2] / "app" / "core" / "config" / "yaml" / "chunker_config.yaml"
 
 # Fallback nếu YAML không tồn tại hoặc thiếu key
 _FALLBACK_CONFIG = {

@@ -184,7 +184,7 @@ def lookup_ma_nganh(program_level: str, program_name: str) -> Optional[str]:
       - Khoảng trắng thừa
       - Lowercase toàn bộ
     """
-    json_path = PROJECT_ROOT / "app" / "core" / "config" / "admissions_mapping.json"
+    json_path = PROJECT_ROOT / "app" / "core" / "config" / "yaml" / "admissions_mapping.json"
     if not json_path.exists():
         return None
     try:
@@ -212,7 +212,7 @@ def lookup_viet_tat(program_name: str) -> Optional[str]:
       "Quản Trị Kinh Doanh" → "QTKD"
       "Tài Chính – Ngân Hàng" → "TC-NH, TCNH"
     """
-    json_path = PROJECT_ROOT / "app" / "core" / "config" / "admissions_mapping.json"
+    json_path = PROJECT_ROOT / "app" / "core" / "config" / "yaml" / "admissions_mapping.json"
     if not json_path.exists():
         return None
     try:
