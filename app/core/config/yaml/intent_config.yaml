@@ -29,8 +29,8 @@ intent_validator:
 # Nếu Vector Router score < threshold → gọi LLM "chữa cháy"
 # ----------------------------------------------------------
 semantic_router:
-  provider: "groq"
-  model: "qwen/qwen3-32b"           #model
+  provider: "openrouter"
+  model: "google/gemini-3.1-flash-lite-preview"           #model
   temperature: 0.0                              # Bắt buộc 0.0 để kết quả JSON luôn cố định
   response_format: "json_object"
   

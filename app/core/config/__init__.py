@@ -28,11 +28,12 @@ def _load_yaml(filename: str) -> dict:
             return yaml.safe_load(f) or {}
     return {}
 
-# Load 4 file YAML tách biệt theo domain
-guardian_yaml_data = _load_yaml("guardian_config.yaml")        # Layer 0-2: Bảo vệ
-intent_yaml_data = _load_yaml("intent_config.yaml")           # Layer 3:   Phân loại ý định
-query_context_yaml_data = _load_yaml("query_context_config.yaml")  # Context: Memory + Reformulation + Multi-Query
-bot_yaml_data = _load_yaml("bot_config.yaml")                 # Layer 4:   Main Bot / RAG
+# Load YAML tách biệt theo domain
+guardian_yaml_data      = _load_yaml("guardian_config.yaml")        # Layer 0-2: Bảo vệ
+intent_yaml_data        = _load_yaml("intent_config.yaml")           # Layer 3:   Phân loại ý định (prompt/allowed)
+intent_routing_yaml_data = _load_yaml("intent_routing_config.yaml")  # Layer 3:   Ngưỡng + Anchor + Action map
+query_context_yaml_data = _load_yaml("query_context_config.yaml")   # Context: Memory + Reformulation + Multi-Query
+bot_yaml_data           = _load_yaml("bot_config.yaml")              # Layer 4:   Main Bot / RAG
 
 # Backward-compatible: giữ yaml_data trỏ tới guardian (các module cũ có thể dùng)
 yaml_data = guardian_yaml_data
@@ -94,6 +95,7 @@ class MainBotConfig(BaseModel):
 from app.core.config.guardian import InputValidationConfig, KeywordFilterConfig, PromptGuardFastConfig, PromptGuardDeepConfig
 from app.core.config.intent import VectorRouterConfig, IntentValidatorConfig, SemanticRouterConfig
 from app.core.config.query_context import MemoryConfig, QueryReformulationConfig, MultiQueryConfig, EmbeddingConfig
+from app.core.config.intent_routing import IntentThresholdConfig, IntentActionConfig, ResponseTemplateConfig, BackupModelConfig
 
 class QueryFlowConfig(BaseModel):
     api_keys: APIKeyConfig = APIKeyConfig()
@@ -101,9 +103,12 @@ class QueryFlowConfig(BaseModel):
     keyword_filter: KeywordFilterConfig = KeywordFilterConfig()
     prompt_guard_fast: PromptGuardFastConfig = PromptGuardFastConfig()
     prompt_guard_deep: PromptGuardDeepConfig = PromptGuardDeepConfig()
-    vector_router: VectorRouterConfig = VectorRouterConfig()
     intent_validator: IntentValidatorConfig = IntentValidatorConfig()
     semantic_router: SemanticRouterConfig = SemanticRouterConfig()
+    intent_threshold: IntentThresholdConfig = IntentThresholdConfig()
+    intent_actions: IntentActionConfig = IntentActionConfig()
+    intent_backup_model: BackupModelConfig = BackupModelConfig()
+    response_templates: ResponseTemplateConfig = ResponseTemplateConfig()
     memory: MemoryConfig = MemoryConfig()
     query_reformulation: QueryReformulationConfig = QueryReformulationConfig()
     multi_query: MultiQueryConfig = MultiQueryConfig()

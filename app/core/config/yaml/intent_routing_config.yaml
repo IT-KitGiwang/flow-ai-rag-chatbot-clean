@@ -1,0 +1,92 @@
+# ============================================================
+# INTENT ROUTING CONFIG — Action mapping & Response templates
+# File: app/core/config/yaml/intent_routing_config.yaml
+# KHÔNG chứa API key — an toàn để commit lên Git
+# ============================================================
+
+# ----------------------------------------------------------
+# PHÂN BIỆT 3 NHÓM XỬ LÝ:
+#
+#   CHAO_HOI      : Tín hiệu mở đầu hội thoại (ngắn < 5 ký tự,
+#                   hoặc Qwen nhận diện là chào hỏi/cảm ơn)
+#                   → "Alo", "ok", "Cho em hỏi", "Dạ cảm ơn"
+#                   → BOT: Chào lại + Mời đặt câu hỏi  (GREET)
+#
+#   KHONG_XAC_DINH: Câu mơ hồ / vô nghĩa / Qwen không đủ tự tin
+#                   → "UFM???", gibberish, ngoài phạm vi
+#                   → BOT: Hỏi lại nhẹ nhàng  (CLARIFY)
+#
+#   Tất cả còn lại: Qwen phân loại intent chi tiết → Agent tương ứng
+# ----------------------------------------------------------
+
+# ----------------------------------------------------------
+# EDGE CASE PRE-CHECK (trước khi gọi Qwen — miễn phí)
+# ----------------------------------------------------------
+thresholds:
+  min_query_length: 5       # Câu < 5 ký tự → CHAO_HOI ngay, không gọi Qwen
+                            # Ví dụ: "Alo" (3), "ok" (2), "Hi" (2), "Dạ" (2)
+
+# ----------------------------------------------------------
+# BACKUP MODEL — Dùng khi primary model trả JSON không hợp lệ
+# Chiến lược: Primary (Qwen) → JSON lỗi → Retry (Gemini Flash Lite)
+# Gemini Flash Lite tuân thủ JSON format tốt hơn Qwen trong edge cases
+# ----------------------------------------------------------
+backup_model:
+  enabled: true
+  provider: "openrouter"
+  model: "google/gemini-3.1-flash-lite-preview"   # Rẻ + nhanh + tuân thủ JSON tốt
+  temperature: 0.0                             # Bắt buộc 0.0 để JSON ổn định
+  max_tokens: 120
+  timeout_seconds: 8
+
+
+# ----------------------------------------------------------
+# INTENT → ACTION MAPPING
+# Mỗi intent được ánh xạ sang action cụ thể.
+# Intent Node ghi state["intent_action"] theo bảng này.
+# ----------------------------------------------------------
+intent_actions:
+  # --- NHÓM 1: Gọi RAG (Tìm kiếm VectorDB) ---
+  THONG_TIN_TUYEN_SINH: "PROCEED_RAG"
+  CHUONG_TRINH_DAO_TAO:  "PROCEED_RAG"
+  HOC_PHI_HOC_BONG:      "PROCEED_RAG"
+  THU_TUC_HANH_CHINH:    "PROCEED_RAG"
+
+  # --- NHÓM 1.5: Form Agent (Không qua RAG/VectorDB) ---
+  TAO_MAU_DON:           "PROCEED_FORM"
+
+  # --- NHÓM 2: PR Agent (RAG + Tone khen trường) ---
+  THANH_TICH_UFM:        "PROCEED_PR"
+  DOI_SONG_SINH_VIEN:    "PROCEED_PR"
+  SO_SANH_TRUONG:        "PROCEED_PR"
+  CO_HOI_VIEC_LAM:       "PROCEED_PR"
+
+  # --- NHÓM 3: Care Agent (Tone đồng cảm + Hotline) ---
+  HO_TRO_TAM_LY:         "PROCEED_CARE"
+  TU_VAN_BO_HOC:         "PROCEED_CARE"
+  KHIEU_NAI_GOP_Y:       "PROCEED_CARE"
+
+  # --- NHÓM 5: Soft Responses (Không gọi RAG, trả template ngay) ---
+  CHAO_HOI:              "GREET"     # Chào lại + Mời hỏi
+  KHONG_XAC_DINH:        "CLARIFY"   # Hỏi lại để hiểu user muốn gì
+
+  # --- NHÓM 4: Block (Xử lý bởi Guardian, nếu lọt xuống đây thì block) ---
+  BOI_NHO_DOI_THU:       "BLOCK_FALLBACK"
+  DOI_HOI_CAM_KET:       "BLOCK_FALLBACK"
+  TAN_CONG_HE_THONG:     "BLOCK_FALLBACK"
+  CAU_HOI_LAC_DE:        "BLOCK_FALLBACK"
+
+# ----------------------------------------------------------
+# RESPONSE TEMPLATES cho GREET và CLARIFY
+# Không cần gọi LLM — trả ngay lập tức, random 1 trong list
+# ----------------------------------------------------------
+response_templates:
+  GREET:
+    - "Chào bạn! 😊 Tôi là trợ lý tư vấn tuyển sinh của Đại học Tài chính - Marketing (UFM). Bạn đang muốn tìm hiểu về ngành học, học phí hay quy trình xét tuyển? Tôi sẵn sàng giải đáp ngay nhé!"
+    - "Dạ em chào anh chị! 🎓 Em là bot tư vấn tuyển sinh UFM. Anh chị đang quan tâm đến chương trình nào ạ? Em sẵn sàng hỗ trợ!"
+    - "Xin chào! Mình là trợ lý tuyển sinh UFM. Bạn cần tư vấn về điều gì — ngành học, học phí, hay điều kiện xét tuyển?"
+
+  CLARIFY:
+    - "Xin lỗi bạn, mình chưa hiểu rõ câu hỏi lắm 😅 Bạn có thể nói rõ hơn bạn đang muốn hỏi về ngành nào hoặc vấn đề gì không ạ?"
+    - "Mình hiểu bạn đang cần tư vấn — nhưng câu hỏi còn khá ngắn! Bạn đang hỏi về học phí, điểm chuẩn, hay chương trình đào tạo vậy ạ?"
+    - "Bạn ơi, bạn có thể cụ thể hơn một chút được không? Mình cần biết bạn quan tâm đến ngành nào để tư vấn đúng nhé!"
