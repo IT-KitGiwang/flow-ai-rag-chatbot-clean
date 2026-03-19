@@ -3,16 +3,17 @@
 # Lớp 0: Input Validation (Chống DoS)
 # Lớp 1: Keyword Filter & Normalization (Chống từ khóa cấm)
 # Lớp 2: Prompt Guard (Chống Injection / Jailbreak)
+# Đọc từ: guardian_config.yaml
 
 from pydantic import BaseModel, Field
 from typing import List, Dict
-from app.core.config import yaml_data
+from app.core.config import guardian_yaml_data
 
 
 # ============================================================
 # LỚP 0: Input Validation (Gatekeeper - Chống DoS)
 # ============================================================
-_iv = yaml_data.get("input_validation", {})
+_iv = guardian_yaml_data.get("input_validation", {})
 
 class InputValidationConfig(BaseModel):
     max_input_chars: int = _iv.get("max_input_chars", 800)
@@ -25,7 +26,7 @@ class InputValidationConfig(BaseModel):
 # ============================================================
 # LỚP 1: Keyword Filter & Normalization
 # ============================================================
-_kf = yaml_data.get("keyword_filter", {})
+_kf = guardian_yaml_data.get("keyword_filter", {})
 
 class KeywordFilterConfig(BaseModel):
     banned_regex_patterns: List[str] = _kf.get("banned_regex_patterns", [])
@@ -44,7 +45,7 @@ class KeywordFilterConfig(BaseModel):
 # ============================================================
 # LỚP 2a: Prompt Guard Fast (Llama 86M - Score-based)
 # ============================================================
-_pgf = yaml_data.get("prompt_guard_fast", {})
+_pgf = guardian_yaml_data.get("prompt_guard_fast", {})
 
 class PromptGuardFastConfig(BaseModel):
     provider: str = _pgf.get("provider", "groq")
@@ -63,7 +64,7 @@ class PromptGuardFastConfig(BaseModel):
 # ============================================================
 # LỚP 2b: Prompt Guard Deep (Qwen 7B - Vietnamese SAFE/UNSAFE)
 # ============================================================
-_pgd = yaml_data.get("prompt_guard_deep", {})
+_pgd = guardian_yaml_data.get("prompt_guard_deep", {})
 
 class PromptGuardDeepConfig(BaseModel):
     provider: str = _pgd.get("provider", "openrouter")

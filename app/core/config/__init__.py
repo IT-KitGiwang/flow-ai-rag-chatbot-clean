@@ -1,5 +1,5 @@
 # app/core/config/__init__.py
-# Phần dùng chung: Load .env, Load YAML, API Keys, Main Bot, Pipeline tổng
+# Phần dùng chung: Load .env, Load YAML (3 files), API Keys, Main Bot, Pipeline tổng
 
 import os
 import yaml
@@ -14,18 +14,26 @@ from typing import Optional
 load_dotenv()
 
 # ============================================================
-# 2. Load YAML (Non-sensitive settings)
+# 2. Load YAML Config Files (Non-sensitive settings)
+#    Tách riêng 3 file: Guardian, Intent, Bot
 # ============================================================
-_YAML_PATH = Path(__file__).parent / "guardian_config.yaml"
+_CONFIG_DIR = Path(__file__).parent
 
-def _load_yaml() -> dict:
+def _load_yaml(filename: str) -> dict:
     """Đọc file YAML config. Trả về dict rỗng nếu file không tồn tại."""
-    if _YAML_PATH.exists():
-        with open(_YAML_PATH, "r", encoding="utf-8") as f:
+    filepath = _CONFIG_DIR / filename
+    if filepath.exists():
+        with open(filepath, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     return {}
 
-yaml_data = _load_yaml()
+# Load 3 file YAML tách biệt theo domain
+guardian_yaml_data = _load_yaml("guardian_config.yaml")   # Layer 0-2: Bảo vệ
+intent_yaml_data = _load_yaml("intent_config.yaml")      # Layer 3:   Phân loại ý định
+bot_yaml_data = _load_yaml("bot_config.yaml")            # Layer 4:   Main Bot / RAG
+
+# Backward-compatible: giữ yaml_data trỏ tới guardian (các module cũ có thể dùng)
+yaml_data = guardian_yaml_data
 
 # ============================================================
 # 3. API Key Config (từ .env)
@@ -69,7 +77,7 @@ class APIKeyConfig(BaseModel):
 # ============================================================
 # LỚP 4: Main Bot (RAG / LLM Generation)
 # ============================================================
-_mb = yaml_data.get("main_bot", {})
+_mb = bot_yaml_data.get("main_bot", {})
 
 class MainBotConfig(BaseModel):
     enabled: bool = _mb.get("enabled", True)
