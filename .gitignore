@@ -6,7 +6,7 @@
 venv/
 env/
 ENV/
-
+chunk_Process/chunk_algorithms/*
 # Python
 __pycache__/
 *.py[cod]

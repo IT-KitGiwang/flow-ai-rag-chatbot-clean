@@ -1,0 +1,108 @@
+# app/core/config/__init__.py
+# Phần dùng chung: Load .env, Load YAML (3 files), API Keys, Main Bot, Pipeline tổng
+
+import os
+import yaml
+from pathlib import Path
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+from typing import Optional
+
+# ============================================================
+# 1. Load .env (API Keys & Secrets)
+# ============================================================
+load_dotenv()
+
+# ============================================================
+# 2. Load YAML Config Files (Non-sensitive settings)
+#    Tách riêng 3 file: Guardian, Intent, Bot
+# ============================================================
+_CONFIG_DIR = Path(__file__).parent
+
+def _load_yaml(filename: str) -> dict:
+    """Đọc file YAML config. Trả về dict rỗng nếu file không tồn tại."""
+    filepath = _CONFIG_DIR / filename
+    if filepath.exists():
+        with open(filepath, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+# Load 3 file YAML tách biệt theo domain
+guardian_yaml_data = _load_yaml("guardian_config.yaml")   # Layer 0-2: Bảo vệ
+intent_yaml_data = _load_yaml("intent_config.yaml")      # Layer 3:   Phân loại ý định
+bot_yaml_data = _load_yaml("bot_config.yaml")            # Layer 4:   Main Bot / RAG
+
+# Backward-compatible: giữ yaml_data trỏ tới guardian (các module cũ có thể dùng)
+yaml_data = guardian_yaml_data
+
+# ============================================================
+# 3. API Key Config (từ .env)
+# ============================================================
+class APIKeyConfig(BaseModel):
+    """Quản lý API keys cho tất cả các cloud provider."""
+    groq_api_key: Optional[str] = Field(
+        default_factory=lambda: os.getenv("GROQ_API_KEY")
+    )
+    groq_base_url: str = Field(
+        default_factory=lambda: os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+    )
+    google_api_key: Optional[str] = Field(
+        default_factory=lambda: os.getenv("GOOGLE_API_KEY")
+    )
+    google_base_url: str = Field(
+        default_factory=lambda: os.getenv("GOOGLE_BASE_URL", "https://generativelanguage.googleapis.com/v1beta")
+    )
+    openai_api_key: Optional[str] = Field(
+        default_factory=lambda: os.getenv("OPENAI_API_KEY")
+    )
+    openai_base_url: str = Field(
+        default_factory=lambda: os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    )
+    openrouter_api_key: Optional[str] = Field(
+        default_factory=lambda: os.getenv("OPENROUTER_API_KEY")
+    )
+    openrouter_base_url: str = Field(
+        default_factory=lambda: os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    )
+
+    def get_key(self, provider: str) -> Optional[str]:
+        """Lấy API key theo tên provider."""
+        return getattr(self, f"{provider}_api_key", None)
+
+    def get_base_url(self, provider: str) -> str:
+        """Lấy base URL theo tên provider."""
+        return getattr(self, f"{provider}_base_url", "")
+
+
+# ============================================================
+# LỚP 4: Main Bot (RAG / LLM Generation)
+# ============================================================
+_mb = bot_yaml_data.get("main_bot", {})
+
+class MainBotConfig(BaseModel):
+    enabled: bool = _mb.get("enabled", True)
+    provider: str = _mb.get("provider", "groq")
+    model: str = _mb.get("model", "llama-3.1-70b-versatile")
+    temperature: float = _mb.get("temperature", 0.2)
+
+
+# ============================================================
+# CẤU HÌNH TỔNG (Pipeline Orchestrator)
+# ============================================================
+from app.core.config.guardian import InputValidationConfig, KeywordFilterConfig, PromptGuardFastConfig, PromptGuardDeepConfig
+from app.core.config.intent import VectorRouterConfig, IntentValidatorConfig, SemanticRouterConfig
+
+class QueryFlowConfig(BaseModel):
+    api_keys: APIKeyConfig = APIKeyConfig()
+    input_validation: InputValidationConfig = InputValidationConfig()
+    keyword_filter: KeywordFilterConfig = KeywordFilterConfig()
+    prompt_guard_fast: PromptGuardFastConfig = PromptGuardFastConfig()
+    prompt_guard_deep: PromptGuardDeepConfig = PromptGuardDeepConfig()
+    vector_router: VectorRouterConfig = VectorRouterConfig()
+    intent_validator: IntentValidatorConfig = IntentValidatorConfig()
+    semantic_router: SemanticRouterConfig = SemanticRouterConfig()
+    main_bot: MainBotConfig = MainBotConfig()
+
+
+# Khởi tạo instance config chung
+query_flow_config = QueryFlowConfig()
