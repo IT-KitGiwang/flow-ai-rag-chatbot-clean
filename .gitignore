@@ -14,6 +14,7 @@ __pycache__/
 *.so
 build/
 dist/
+data/*
 *.egg-info/
 .eggs/
 *.egg
