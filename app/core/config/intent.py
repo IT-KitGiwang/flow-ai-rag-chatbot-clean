@@ -61,6 +61,8 @@ class SemanticRouterConfig(BaseModel):
             "CHUONG_TRINH_DAO_TAO",
             "HOC_PHI_HOC_BONG",
             "THU_TUC_HANH_CHINH",
+            # Nhóm 1.5: Yêu cầu mẫu đơn (→ FormAgent)
+            "TAO_MAU_DON",
             # Nhóm 2: Truyền thông & Thương hiệu
             "THANH_TICH_UFM",
             "DOI_SONG_SINH_VIEN",

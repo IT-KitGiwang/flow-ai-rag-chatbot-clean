@@ -42,6 +42,9 @@ docker-compose.override.yml
 database/backups/*.sql
 database/backups/*.gz
 
+# Chunk exports (JSON preview — không push lên Git)
+data/exports/
+
 # Các file XML hoặc log (tránh push nhầm file build xml/log)
 *.log
 *.xml

@@ -202,10 +202,25 @@ ORDER BY p.chunk_id, c.chunk_index;
 INSERT INTO intent_examples (intent_name, example_text) VALUES
 ('THONG_TIN_TUYEN_SINH', 'Cho em hỏi điểm chuẩn ngành Marketing năm 2024 là bao nhiêu ạ?'),
 ('THONG_TIN_TUYEN_SINH', 'Trường tuyển sinh khối nào? Có xét học bạ không?'),
+('THONG_TIN_TUYEN_SINH', 'Điều kiện xét tuyển thạc sĩ ngành Kinh doanh quốc tế là gì?'),
 ('HOC_PHI_HOC_BONG', 'Học phí 1 kỳ của trường Tài chính Marketing là bao nhiêu?'),
 ('HOC_PHI_HOC_BONG', 'Trường có chính sách giảm học phí hay học bổng cho sinh viên nghèo không?'),
 ('DOI_SONG_SINH_VIEN', 'Ký túc xá của trường nằm ở đâu? Có điều hòa không ạ?'),
-('THU_TUC_HANH_CHINH', 'Thủ tục làm hồ sơ nhập học cần mang theo những giấy tờ gì?');
+('THU_TUC_HANH_CHINH', 'Thủ tục làm hồ sơ nhập học cần mang theo những giấy tờ gì?'),
+
+-- Intent: Yêu cầu mẫu đơn / biểu mẫu (→ FormAgent, KHÔNG qua VectorDB)
+('TAO_MAU_DON', 'Cho em xin mẫu đơn đăng ký dự tuyển tiến sĩ'),
+('TAO_MAU_DON', 'Gửi em giấy cam đoan học thạc sĩ với ạ'),
+('TAO_MAU_DON', 'Tải đơn dự tuyển thạc sĩ ở đâu?'),
+('TAO_MAU_DON', 'Trường có mẫu viết đề cương nghiên cứu không?'),
+('TAO_MAU_DON', 'Cho em xin file word để điền thông tin xét tuyển'),
+('TAO_MAU_DON', 'Em cần mẫu đơn đăng ký thi nghiên cứu sinh'),
+
+-- Intent: Hỏi về chương trình đào tạo (→ VectorDB structured chunks)
+('CHUONG_TRINH_DAO_TAO', 'Chương trình thạc sĩ Kinh doanh quốc tế học những gì?'),
+('CHUONG_TRINH_DAO_TAO', 'Tiến sĩ Quản trị kinh doanh ra trường làm ở đâu?'),
+('CHUONG_TRINH_DAO_TAO', 'Cơ hội nghề nghiệp sau khi tốt nghiệp thạc sĩ Tài chính Ngân hàng?'),
+('CHUONG_TRINH_DAO_TAO', 'Thạc sĩ Marketing học mấy năm? Bao nhiêu tín chỉ?');
 
 
 -- ════════════════════════════════════════════════════════════

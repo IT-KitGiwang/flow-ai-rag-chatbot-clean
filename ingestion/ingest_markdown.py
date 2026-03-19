@@ -48,10 +48,10 @@ from models.chunk import ProcessedChunk
 # ================================================================
 # CẤU HÌNH
 # ================================================================
-# Thư mục chứa Markdown files
+# Thư mục chứa Markdown files (CHỈ thông tin tuyển sinh, KHÔNG mẫu đơn)
+# Mẫu đơn (maudon/) được xử lý bởi FormAgent, không đưa vào VectorDB
 MARKDOWN_DIRS = [
     PROJECT_ROOT / "data" / "unstructured" / "markdown" / "thongtinchung",
-    PROJECT_ROOT / "data" / "unstructured" / "markdown" / "maudon",
 ]
 
 # Database
