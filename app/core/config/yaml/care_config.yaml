@@ -1,0 +1,38 @@
+# ============================================================
+# CARE CONFIG — Chăm sóc sinh viên (Qwen LLM + Thông tin liên hệ)
+# File: app/core/config/yaml/care_config.yaml
+# Admin chỉ cần sửa file YAML này để cập nhật hotline/email
+# ============================================================
+
+care:
+  # -- Cấu hình Model --
+  provider: openrouter
+  model: "qwen/qwen3.5-flash-02-23"
+  temperature: 0.4                    # Đủ ấm để đồng cảm, không quá sáng tạo
+  max_tokens: 500                     # Giữ ngắn gọn, tiết kiệm chi phí
+
+  # -- Thông tin liên hệ theo Intent (truyền vào System Prompt) --
+  contacts:
+    ho_tro_sinh_vien:
+      don_vi: "Phòng Công tác Sinh viên"
+      hotline: "(028) 3997 2078"
+      email: "ctsv@ufm.edu.vn"
+      dia_chi: "Lầu 3, Tòa nhà A, 778 Nguyễn Kiệm, Q. Phú Nhuận, TP.HCM"
+      gio_lam_viec: "Thứ 2 - Thứ 6, 7h30 - 16h30"
+      ghi_chu: "UFM có Trung tâm Tư vấn Tâm lý hỗ trợ miễn phí cho sinh viên"
+
+    khieu_nai_gop_y:
+      don_vi: "Phòng Thanh tra - Pháp chế"
+      hotline: "(028) 3997 2079"
+      email: "thanhtra@ufm.edu.vn"
+      dia_chi: "Lầu 4, Tòa nhà A, 778 Nguyễn Kiệm, Q. Phú Nhuận, TP.HCM"
+      gio_lam_viec: "Thứ 2 - Thứ 6, 7h30 - 16h30"
+      ghi_chu: "Mọi phản ánh sẽ được xử lý trong vòng 3-5 ngày làm việc"
+
+    default:
+      don_vi: "Phòng Công tác Sinh viên"
+      hotline: "(028) 3997 2078"
+      email: "ctsv@ufm.edu.vn"
+      dia_chi: "778 Nguyễn Kiệm, Q. Phú Nhuận, TP.HCM"
+      gio_lam_viec: "Thứ 2 - Thứ 6, 7h30 - 16h30"
+      ghi_chu: ""

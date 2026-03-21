@@ -10,6 +10,8 @@
 # ----------------------------------------------------------
 main_bot:
   enabled: true
-  provider: "groq"                              # groq | google | openai | openrouter
-  model: "llama-3.1-70b-versatile"
-  temperature: 0.2
+  provider: "openrouter"                        # Cấp nguồn: OpenRouter
+  model: "google/gemini-3.0-flash-preview"      # Model thế hệ mới nhất, suy luận context sâu
+  temperature: 0.2                              # Tăng nhẹ để văn phong tự nhiên, mượt mà
+  max_tokens: 1500                              # Cho phép bot trả lời dài hơn
+  timeout_seconds: 20                           # Timeout cho sinh context dài

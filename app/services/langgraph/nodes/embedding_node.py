@@ -29,6 +29,9 @@ import urllib.request
 import urllib.error
 from app.services.langgraph.state import GraphState
 from app.core.config import query_flow_config
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def _embed_batch(
@@ -51,6 +54,7 @@ def _embed_batch(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "User-Agent": "UFM-Admission-Bot/1.0",
+        "HTTP-Referer": "https://ufm.edu.vn",
     }
     data = {
         "model": model,
@@ -76,7 +80,7 @@ def _embed_batch(
         except urllib.error.HTTPError as e:
             if e.code in {429, 500, 502, 503} and attempt < max_retries:
                 wait = 2 ** attempt
-                print(f"   [Embedding] ⏳ API {e.code}, retry {attempt}/{max_retries} sau {wait}s...")
+                logger.warning("Embedding API %d, retry %d/%d sau %ds...", e.code, attempt, max_retries, wait)
                 time.sleep(wait)
                 continue
             error_body = ""
@@ -89,7 +93,7 @@ def _embed_batch(
         except (urllib.error.URLError, OSError) as e:
             if attempt < max_retries:
                 wait = 2 ** attempt
-                print(f"   [Embedding] ⏳ Network error, retry {attempt}/{max_retries} sau {wait}s...")
+                logger.warning("Embedding Network error, retry %d/%d sau %ds...", attempt, max_retries, wait)
                 time.sleep(wait)
                 continue
             raise RuntimeError(f"Embedding Network Error: {e}") from e
@@ -123,7 +127,7 @@ def embedding_node(state: GraphState) -> GraphState:
     batch_texts = [standalone_query] + multi_queries
     batch_size = len(batch_texts)
 
-    print(f"   [Embedding Node] Nhúng {batch_size} câu (1 gốc + {len(multi_queries)} biến thể)...")
+    logger.info("Embedding Node - Nhung %d cau (1 goc + %d bien the)...", batch_size, len(multi_queries))
 
     # ── Lấy API key ──
     api_key = query_flow_config.api_keys.get_key(config.provider)
@@ -131,7 +135,7 @@ def embedding_node(state: GraphState) -> GraphState:
 
     if not api_key:
         elapsed = time.time() - start_time
-        print(f"   [Embedding — {elapsed:.3f}s] ⚠️ Chưa cấu hình API Key cho '{config.provider}'")
+        logger.warning("Embedding [%.3fs] Chua cau hinh API Key cho '%s'", elapsed, config.provider)
         return {
             **state,
             "query_embeddings": [],
@@ -153,17 +157,12 @@ def embedding_node(state: GraphState) -> GraphState:
 
         # Validate kết quả
         if len(embeddings) != batch_size:
-            print(f"   [Embedding — {elapsed:.3f}s] ⚠️ Kỳ vọng {batch_size} vectors, nhận {len(embeddings)}")
+            logger.warning("Embedding [%.3fs] Ky vong %d vectors, nhan %d", elapsed, batch_size, len(embeddings))
 
-        # Log chi tiết
-        print(f"   [Embedding — {elapsed:.3f}s] ✅ Hoàn tất:")
-        print(f"     Model  : {config.model}")
-        print(f"     Dims   : {config.dimensions}")
-        print(f"     Vectors: {len(embeddings)}")
-        for i, emb in enumerate(embeddings):
-            label = "standalone" if i == 0 else f"variant_{i}"
-            norm = sum(v**2 for v in emb) ** 0.5
-            print(f"     [{i}] {label:<12} | dims={len(emb)} | norm={norm:.4f} | preview={emb[:3]}")
+        logger.info(
+            "Embedding [%.3fs] OK: model=%s, dims=%d, vectors=%d",
+            elapsed, config.model, config.dimensions, len(embeddings)
+        )
 
         return {
             **state,
@@ -173,8 +172,7 @@ def embedding_node(state: GraphState) -> GraphState:
 
     except Exception as e:
         elapsed = time.time() - start_time
-        print(f"   [Embedding — {elapsed:.3f}s] ⚠️ Lỗi: {e}")
-        print(f"     Fallback: query_embeddings = [] (RAG sẽ thử lại sau)")
+        logger.error("Embedding [%.3fs] Loi: %s", elapsed, e, exc_info=True)
         return {
             **state,
             "query_embeddings": [],

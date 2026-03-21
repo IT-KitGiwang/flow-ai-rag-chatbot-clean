@@ -22,16 +22,22 @@ import time
 from app.services.langgraph.state import GraphState
 from app.services.intent_service import classify_intent
 from app.core.config import query_flow_config
+from app.utils.query_analyzer import extract_all
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # ── Map intent_action → next_node ──
 _ACTION_TO_NODE: dict = {
-    "PROCEED_RAG":    "rag",
-    "PROCEED_FORM":   "form",
-    "PROCEED_PR":     "pr",
-    "PROCEED_CARE":   "care",
-    "GREET":          "response",
-    "CLARIFY":        "response",
-    "BLOCK_FALLBACK": "response",
+    "PROCEED_RAG":            "response",    # (FIXED) RAG context đã lấy xong ở đầu, chạy thẳng ra LLM
+    "PROCEED_RAG_UFM_SEARCH": "rag_search",  # Chạy qua luồng Web/Evaluator
+    "PROCEED_RAG_PR_SEARCH":  "rag_search",  # Chạy qua luồng Web PR
+    "PROCEED_FORM":           "form",
+    "PROCEED_PR":             "rag_search",   # PR cũ → fallback
+    "PROCEED_CARE":           "care",
+    "GREET":              "response",
+    "CLARIFY":            "response",
+    "BLOCK_FALLBACK":     "response",
 }
 
 
@@ -47,7 +53,7 @@ def intent_node(state: GraphState) -> GraphState:
       - state["intent_summary"]:  Tóm tắt câu hỏi (từ Qwen)
       - state["intent_action"]:   Action routing ("PROCEED_RAG", ...)
       - state["next_node"]:       "rag" / "form" / "pr" / "care" / "response"
-      - state["final_response"]:  Ghi sẵn nếu GREET / CLARIFY / BLOCK_FALLBACK
+      - state["final_response"]:  Ghi sẵn nếu GREET / CLARIFY / BLOCK_FALLBA CK
       - state["response_source"]: Nguồn gốc final_response
     """
     standalone_query = state.get("standalone_query", state.get("user_query", ""))
@@ -62,7 +68,16 @@ def intent_node(state: GraphState) -> GraphState:
     next_node      = _ACTION_TO_NODE.get(intent_action, "response")
     elapsed        = time.time() - start_time
 
-    print(f"   [Intent Node — {elapsed:.3f}s] intent='{intent}' action='{intent_action}' → {next_node}")
+    # ── Trích xuất metadata (Regex 0ms) để filter RAG ──
+    query_meta = extract_all(standalone_query)
+    program_level = query_meta["program_level"]
+    program_name = query_meta["program_name"]
+    if program_level:
+        logger.info("Intent Node - program_level_filter='%s'", program_level)
+    if program_name:
+        logger.info("Intent Node - program_name_filter='%s'", program_name)
+
+    logger.info("Intent Node [%.3fs] intent='%s' action='%s' -> %s", elapsed, intent, intent_action, next_node)
 
     # ════════════════════════════════════════════════════════
     # XỬ LÝ CÁC NHÓM KHÔNG CẦN GỌI RAG (Trả ngay lập tức)
@@ -71,12 +86,14 @@ def intent_node(state: GraphState) -> GraphState:
     # ── GREET: Chào lại + Mời hỏi ──
     if intent_action == "GREET":
         greet_msg = query_flow_config.response_templates.get_greet()
-        print(f"   [Intent Node] 👋 GREET → Trả template ngay")
+        logger.info("Intent Node - GREET -> Tra template")
         return {
             **state,
             "intent": intent,
             "intent_summary": intent_summary,
             "intent_action": intent_action,
+            "program_level_filter": program_level,
+            "program_name_filter": program_name,
             "next_node": "response",
             "final_response": greet_msg,
             "response_source": "greet_template",
@@ -85,12 +102,14 @@ def intent_node(state: GraphState) -> GraphState:
     # ── CLARIFY: Hỏi lại nhẹ nhàng ──
     if intent_action == "CLARIFY":
         clarify_msg = query_flow_config.response_templates.get_clarify()
-        print(f"   [Intent Node] 🔍 CLARIFY → Mời user nói rõ hơn")
+        logger.info("Intent Node - CLARIFY -> Moi user noi ro hon")
         return {
             **state,
             "intent": intent,
             "intent_summary": intent_summary,
             "intent_action": intent_action,
+            "program_level_filter": program_level,
+            "program_name_filter": program_name,
             "next_node": "response",
             "final_response": clarify_msg,
             "response_source": "clarify_template",
@@ -103,12 +122,14 @@ def intent_node(state: GraphState) -> GraphState:
             intent,
             semantic_cfg.fallback_out_of_scope
         ).strip()
-        print(f"   [Intent Node] 🚫 BLOCK_FALLBACK → intent='{intent}'")
+        logger.info("Intent Node - BLOCK_FALLBACK -> intent='%s'", intent)
         return {
             **state,
             "intent": intent,
             "intent_summary": intent_summary,
             "intent_action": intent_action,
+            "program_level_filter": program_level,
+            "program_name_filter": program_name,
             "next_node": "response",
             "final_response": fallback_msg,
             "response_source": "intent_block",
@@ -122,6 +143,8 @@ def intent_node(state: GraphState) -> GraphState:
         "intent": intent,
         "intent_summary": intent_summary,
         "intent_action": intent_action,
+        "program_level_filter": program_level,
+        "program_name_filter": program_name,
         "next_node": next_node,
         "final_response": state.get("final_response", ""),
         "response_source": state.get("response_source", ""),

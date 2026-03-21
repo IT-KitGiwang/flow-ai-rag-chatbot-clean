@@ -23,19 +23,6 @@ class IntentThresholdConfig(BaseModel):
     )
 
 
-# ============================================================
-# BACKUP MODEL (Retry khi Primary model trả JSON không hợp lệ)
-# ============================================================
-_bk = intent_routing_yaml_data.get("backup_model", {})
-
-class BackupModelConfig(BaseModel):
-    enabled: bool    = _bk.get("enabled", True)
-    provider: str    = _bk.get("provider", "openrouter")
-    model: str       = _bk.get("model", "google/gemini-3.1-flash-lite-preview")
-    temperature: float = _bk.get("temperature", 0.0)
-    max_tokens: int  = _bk.get("max_tokens", 120)
-    timeout_seconds: int = _bk.get("timeout_seconds", 8)
-
 
 # ============================================================
 # INTENT → ACTION MAPPING
@@ -44,6 +31,8 @@ _actions_raw = intent_routing_yaml_data.get("intent_actions", {})
 
 VALID_ACTIONS = {
     "PROCEED_RAG",
+    "PROCEED_RAG_UFM_SEARCH",
+    "PROCEED_RAG_PR_SEARCH",
     "PROCEED_FORM",
     "PROCEED_PR",
     "PROCEED_CARE",

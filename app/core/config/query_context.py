@@ -12,10 +12,20 @@ from app.core.config import query_context_yaml_data
 # ============================================================
 _mem = query_context_yaml_data.get("memory", {})
 
+class AutoSummarizeConfig(BaseModel):
+    enabled: bool = _mem.get("auto_summarize", {}).get("enabled", True)
+    trigger_length: int = _mem.get("auto_summarize", {}).get("trigger_length", 300)
+    target_length: int = _mem.get("auto_summarize", {}).get("target_length", 120)
+    provider: str = _mem.get("auto_summarize", {}).get("provider", "openrouter")
+    model: str = _mem.get("auto_summarize", {}).get("model", "google/gemini-3.1-flash-lite-preview")
+    max_tokens: int = _mem.get("auto_summarize", {}).get("max_tokens", 80)
+    timeout_seconds: int = _mem.get("auto_summarize", {}).get("timeout_seconds", 6)
+
 class MemoryConfig(BaseModel):
     max_history_turns: int = _mem.get("max_history_turns", 10)
     max_tokens_per_message: int = _mem.get("max_tokens_per_message", 400)
     include_system_summary: bool = _mem.get("include_system_summary", False)
+    auto_summarize: AutoSummarizeConfig = AutoSummarizeConfig()
 
 
 # ============================================================

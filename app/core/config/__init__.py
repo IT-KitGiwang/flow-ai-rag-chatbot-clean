@@ -34,6 +34,7 @@ intent_yaml_data        = _load_yaml("intent_config.yaml")           # Layer 3: 
 intent_routing_yaml_data = _load_yaml("intent_routing_config.yaml")  # Layer 3:   Ngưỡng + Anchor + Action map
 query_context_yaml_data = _load_yaml("query_context_config.yaml")   # Context: Memory + Reformulation + Multi-Query
 bot_yaml_data           = _load_yaml("bot_config.yaml")              # Layer 4:   Main Bot / RAG
+rag_search_yaml_data    = _load_yaml("rag_search_config.yaml")       # RAG Search: PR Query + Web Search + Synthesizer + Sanitizer
 
 # Backward-compatible: giữ yaml_data trỏ tới guardian (các module cũ có thể dùng)
 yaml_data = guardian_yaml_data
@@ -87,6 +88,8 @@ class MainBotConfig(BaseModel):
     provider: str = _mb.get("provider", "groq")
     model: str = _mb.get("model", "llama-3.1-70b-versatile")
     temperature: float = _mb.get("temperature", 0.2)
+    max_tokens: int = _mb.get("max_tokens", 800)
+    timeout_seconds: int = _mb.get("timeout_seconds", 15)
 
 
 # ============================================================
@@ -95,7 +98,14 @@ class MainBotConfig(BaseModel):
 from app.core.config.guardian import InputValidationConfig, KeywordFilterConfig, PromptGuardFastConfig, PromptGuardDeepConfig
 from app.core.config.intent import VectorRouterConfig, IntentValidatorConfig, SemanticRouterConfig
 from app.core.config.query_context import MemoryConfig, QueryReformulationConfig, MultiQueryConfig, EmbeddingConfig
-from app.core.config.intent_routing import IntentThresholdConfig, IntentActionConfig, ResponseTemplateConfig, BackupModelConfig
+from app.core.config.intent_routing import IntentThresholdConfig, IntentActionConfig, ResponseTemplateConfig
+from app.core.config.rag_search import (
+    PRQueryConfig, UFMQueryConfig, WebSearchConfig,
+    InfoSynthesizerConfig, PRSynthesizerConfig, SanitizerConfig,
+    SearchCacheConfig, EvaluatorConfig
+)
+from app.core.config.fallback_models import FallbackModelsConfig
+from app.core.config.retriever import RetrieverConfig
 
 class QueryFlowConfig(BaseModel):
     api_keys: APIKeyConfig = APIKeyConfig()
@@ -107,13 +117,25 @@ class QueryFlowConfig(BaseModel):
     semantic_router: SemanticRouterConfig = SemanticRouterConfig()
     intent_threshold: IntentThresholdConfig = IntentThresholdConfig()
     intent_actions: IntentActionConfig = IntentActionConfig()
-    intent_backup_model: BackupModelConfig = BackupModelConfig()
     response_templates: ResponseTemplateConfig = ResponseTemplateConfig()
     memory: MemoryConfig = MemoryConfig()
     query_reformulation: QueryReformulationConfig = QueryReformulationConfig()
     multi_query: MultiQueryConfig = MultiQueryConfig()
     embedding: EmbeddingConfig = EmbeddingConfig()
     main_bot: MainBotConfig = MainBotConfig()
+    # RAG Search Pipeline
+    pr_query: PRQueryConfig = PRQueryConfig()
+    ufm_query: UFMQueryConfig = UFMQueryConfig()
+    web_search: WebSearchConfig = WebSearchConfig()
+    info_synthesizer: InfoSynthesizerConfig = InfoSynthesizerConfig()
+    pr_synthesizer: PRSynthesizerConfig = PRSynthesizerConfig()
+    sanitizer: SanitizerConfig = SanitizerConfig()
+    search_cache: SearchCacheConfig = SearchCacheConfig()
+    context_evaluator: EvaluatorConfig = EvaluatorConfig()
+    # Hybrid Retriever (Vector + BM25 + RRF + Parent)
+    retriever: RetrieverConfig = RetrieverConfig()
+    # Fallback Models
+    fallback_models: FallbackModelsConfig = FallbackModelsConfig()
 
 
 # Khởi tạo instance config chung

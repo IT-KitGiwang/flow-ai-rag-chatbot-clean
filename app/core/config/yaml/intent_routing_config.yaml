@@ -26,19 +26,6 @@ thresholds:
   min_query_length: 5       # Câu < 5 ký tự → CHAO_HOI ngay, không gọi Qwen
                             # Ví dụ: "Alo" (3), "ok" (2), "Hi" (2), "Dạ" (2)
 
-# ----------------------------------------------------------
-# BACKUP MODEL — Dùng khi primary model trả JSON không hợp lệ
-# Chiến lược: Primary (Qwen) → JSON lỗi → Retry (Gemini Flash Lite)
-# Gemini Flash Lite tuân thủ JSON format tốt hơn Qwen trong edge cases
-# ----------------------------------------------------------
-backup_model:
-  enabled: true
-  provider: "openrouter"
-  model: "google/gemini-3.1-flash-lite-preview"   # Rẻ + nhanh + tuân thủ JSON tốt
-  temperature: 0.0                             # Bắt buộc 0.0 để JSON ổn định
-  max_tokens: 120
-  timeout_seconds: 8
-
 
 # ----------------------------------------------------------
 # INTENT → ACTION MAPPING
@@ -46,24 +33,26 @@ backup_model:
 # Intent Node ghi state["intent_action"] theo bảng này.
 # ----------------------------------------------------------
 intent_actions:
-  # --- NHÓM 1: Gọi RAG (Tìm kiếm VectorDB) ---
-  THONG_TIN_TUYEN_SINH: "PROCEED_RAG"
-  CHUONG_TRINH_DAO_TAO:  "PROCEED_RAG"
+  # --- NHÓM 1a: RAG thuần (Chỉ tìm DB nội bộ, KHÔNG search web) ---
   HOC_PHI_HOC_BONG:      "PROCEED_RAG"
   THU_TUC_HANH_CHINH:    "PROCEED_RAG"
+
+  # --- NHÓM 1b: RAG + Web UFM Search (Tìm kiếm trực diện trên sub-domain UFM) ---
+  # Không cho phép bot khoe khoang AI hay bơm PR vào những câu hỏi này.
+  THONG_TIN_TUYEN_SINH:  "PROCEED_RAG_UFM_SEARCH"
+  CHUONG_TRINH_DAO_TAO:  "PROCEED_RAG_UFM_SEARCH"
 
   # --- NHÓM 1.5: Form Agent (Không qua RAG/VectorDB) ---
   TAO_MAU_DON:           "PROCEED_FORM"
 
-  # --- NHÓM 2: PR Agent (RAG + Tone khen trường) ---
-  THANH_TICH_UFM:        "PROCEED_PR"
-  DOI_SONG_SINH_VIEN:    "PROCEED_PR"
-  SO_SANH_TRUONG:        "PROCEED_PR"
-  CO_HOI_VIEC_LAM:       "PROCEED_PR"
+  # --- NHÓM 2: PR & Brand Engine (Cho phép PR nhẹ nhàng, không dìm trường bạn) ---
+  THANH_TICH_UFM:        "PROCEED_RAG_PR_SEARCH"
+  DOI_SONG_SINH_VIEN:    "PROCEED_RAG_PR_SEARCH"
+  SO_SANH_TRUONG:        "PROCEED_RAG_PR_SEARCH"
+  CO_HOI_VIEC_LAM:       "PROCEED_RAG_PR_SEARCH"
 
   # --- NHÓM 3: Care Agent (Tone đồng cảm + Hotline) ---
-  HO_TRO_TAM_LY:         "PROCEED_CARE"
-  TU_VAN_BO_HOC:         "PROCEED_CARE"
+  HO_TRO_SINH_VIEN:      "PROCEED_CARE"     # Gộp: tâm lý, áp lực, muốn nghỉ, chán nản, nợ môn
   KHIEU_NAI_GOP_Y:       "PROCEED_CARE"
 
   # --- NHÓM 5: Soft Responses (Không gọi RAG, trả template ngay) ---

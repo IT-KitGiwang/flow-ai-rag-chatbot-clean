@@ -35,6 +35,12 @@ Thiết kế cho bài toán: Chatbot Tư vấn Tuyển sinh Đại học (Hội 
     ▼
   [Agent Node] ── RAG / Form / PR / Care
     │
+    ├─ (Nếu PROCEED_RAG_SEARCH):
+    │   [PR Query Gen] → sinh query PR riêng (KHÔNG vào embedding)
+    │   [Web Search Agent] → gpt-4o-mini-search-preview (fallback=null)
+    │   [Synthesizer] → tổng hợp RAG context + web context
+    │   [Sanitizer] → kiểm tra trích dẫn, tone PR, loop nếu lỗi
+    │
     ▼
   [Response Node] ── Ghi cache + Cập nhật lịch sử
     │
@@ -148,6 +154,9 @@ class GraphState(TypedDict, total=False):
     intent: str                        # "THONG_TIN_TUYEN_SINH", "TAO_MAU_DON"...
     intent_summary: str                # Tóm tắt từ Qwen
     intent_action: str                 # "PROCEED_RAG", "PROCEED_FORM", "BLOCK_FALLBACK"...
+    program_level_filter: Optional[str]  # "thac_si" | "tien_si" | "dai_hoc" | None
+                                         # Metadata filter cho RAG SQL (trích từ query)
+    program_name_filter: Optional[str]   # Tên ngành (ILIKE match) | None
 
     # ════════════════════════════════════════════════════════
     # 9. RAG NODE
@@ -155,6 +164,33 @@ class GraphState(TypedDict, total=False):
     # ════════════════════════════════════════════════════════
     retrieved_chunks: Optional[list]
     rag_context: Optional[str]
+    rag_confidence_failed: Optional[bool]      # True = top1 cosine < ngưỡng (0.85)
+    top1_cosine_score: Optional[float]         # Cosine score của chunk vector hàng đầu
+
+    # ════════════════════════════════════════════════════════
+    # 9b. PROCEED RAG SEARCH (Web-Augmented RAG Pipeline)
+    # Ghi bởi: PR Query Node, Web Search Node, Synthesizer, Sanitizer
+    # ════════════════════════════════════════════════════════
+    ufm_search_queries: Optional[list]      # Danh sách tối đa 2 câu tìm kiếm sub-domain UFM
+                                            # (Dành cho PROCEED_RAG_UFM_SEARCH)
+
+    pr_search_query: Optional[str]          # Query PR riêng
+                                            # (Dành cho PROCEED_RAG_PR_SEARCH)
+
+    web_search_results: Optional[list]      # Kết quả từ gpt-4o-mini-search-preview
+                                            # [{"title": "...", "url": "...", "snippet": "..."}]
+                                            # = None nếu node search fallback
+
+    web_search_citations: Optional[list]    # Trích dẫn chuẩn markdown đã verify
+                                            # ["[Tên bài](https://...)", ...]
+
+    synthesized_draft: Optional[str]        # Bản nháp câu trả lời từ Synthesizer
+    sanitizer_critique: Optional[str]       # Phản hồi lỗi từ Sanitizer (nếu có)
+    sanitizer_passed: Optional[bool]        # True = draft OK, False = cần sửa
+    sanitizer_loop_count: Optional[int]     # Đếm số vòng lặp Sanitizer (max 2)
+
+    search_cache_hit: Optional[bool]        # True = lấy từ cache, False = gọi API mới
+    search_cache_similarity: Optional[float]  # Điểm cosine similarity với entry cache
 
     # ════════════════════════════════════════════════════════
     # 10. RESPONSE

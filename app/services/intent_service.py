@@ -24,6 +24,7 @@ import time
 import urllib.request
 import urllib.error
 from app.core.config import query_flow_config
+from app.core.prompts import prompt_manager
 
 
 # ================================================================
@@ -141,110 +142,79 @@ def classify_by_llm(standalone_query: str) -> tuple:
     Returns: (intent_name: str, summary: str)
     """
     semantic_cfg = query_flow_config.semantic_router
-    backup_cfg   = query_flow_config.intent_backup_model
     validator_cfg = query_flow_config.intent_validator
     allowed_intents = set(semantic_cfg.allowed_intents)
     fallback_intent = validator_cfg.fallback_intent
 
-    primary_api_key = query_flow_config.api_keys.get_key(semantic_cfg.provider)
-    primary_base_url = query_flow_config.api_keys.get_base_url(semantic_cfg.provider)
-    backup_api_key  = query_flow_config.api_keys.get_key(backup_cfg.provider)
-    backup_base_url = query_flow_config.api_keys.get_base_url(backup_cfg.provider)
+    # Danh sách model theo nhóm "light" (Primary + Fallbacks) từ fallback config chung
+    fb_config = query_flow_config.fallback_models
+    model_chain = fb_config.get_model_chain("light")
 
-    # ── LƯỢT 1: PRIMARY MODEL (Qwen) ──
-    if primary_api_key:
-        primary_start = time.time()
+    if not model_chain:
+        print(f"   [IntentService] ⚠️ Không có model nào trong nhóm 'light' → {fallback_intent}")
+        return fallback_intent, standalone_query
+
+    # ── DUYỆT QUA TỪNG MODEL (Primary → Fallback 1 → Fallback 2) ──
+    for i, entry in enumerate(model_chain):
+        label = "Primary" if i == 0 else f"Fallback #{i}"
+        
+        api_key = query_flow_config.api_keys.get_key(entry.provider)
+        base_url = query_flow_config.api_keys.get_base_url(entry.provider)
+
+        if not api_key:
+            print(f"   [IntentService] ⚠️ Chưa có API key cho {entry.provider} → Bỏ qua {label}")
+            continue
+
+        start_t = time.time()
         try:
+            # Ưu tiên lấy max_tokens/temperature từ config gốc
+            # hoặc ghi đè cho phù hợp với intent classification
             raw = _call_llm(
                 standalone_query=standalone_query,
-                system_prompt=semantic_cfg.system_prompt,
-                api_key=primary_api_key,
-                base_url=primary_base_url,
-                model=semantic_cfg.model,
-                temperature=semantic_cfg.temperature,
-                max_tokens=120,
-                timeout=12,
+                system_prompt=prompt_manager.get_system("intent_classification"),
+                api_key=api_key,
+                base_url=base_url,
+                model=entry.model,
+                temperature=0.0,  # Ép 0.0 để JSON luôn chuẩn xác
+                max_tokens=150,
+                timeout=10,
             )
-            primary_elapsed = time.time() - primary_start
+            elapsed = time.time() - start_t
             parsed = _extract_json(raw)
 
             if parsed is not None:
                 intent, summary = _validate_parsed(parsed, allowed_intents, fallback_intent)
                 print(
-                    f"   [IntentService] ✅ Primary ({semantic_cfg.model}) "
-                    f"— {primary_elapsed:.3f}s "
+                    f"   [IntentService] ✅ {label} ({entry.provider}/{entry.model}) "
+                    f"— {elapsed:.3f}s "
                     f"→ intent='{intent}'"
                 )
                 return intent, summary
             else:
                 print(
-                    f"   [IntentService] ⚠️ Primary JSON không hợp lệ "
-                    f"({primary_elapsed:.3f}s) — raw: {raw[:80]!r}"
+                    f"   [IntentService] ⚠️ {label} JSON lỗi định dạng "
+                    f"({elapsed:.3f}s) — raw: {raw[:80]!r}"
                 )
-                # Không return, tiếp tục xuống Backup
+                # Tiếp tục vòng lặp thử model tiếp theo
 
         except urllib.error.HTTPError as e:
+            elapsed = time.time() - start_t
             try:
                 error_body = e.read().decode("utf-8")
             except Exception:
                 error_body = ""
-            print(f"   [IntentService] ⚠️ Primary HTTP {e.code} ({e.reason}) → {error_body} → Backup")
+            print(f"   [IntentService] ⚠️ {label} HTTP {e.code} ({elapsed:.3f}s) → {error_body[:50]}")
         except Exception as e:
-            print(f"   [IntentService] ⚠️ Primary error: {type(e).__name__}: {e} → Backup")
-    else:
-        print(f"   [IntentService] ⚠️ Chưa có API key cho Primary '{semantic_cfg.provider}' → Backup")
+            elapsed = time.time() - start_t
+            print(f"   [IntentService] ⚠️ {label} Error ({elapsed:.3f}s): {type(e).__name__}: {str(e)[:50]}")
 
-    # ── LƯỢT 2: BACKUP MODEL (Gemini Flash Lite) ──
-    if not backup_cfg.enabled:
-        print(f"   [IntentService] ⏭️ Backup bị tắt → {fallback_intent}")
-        return fallback_intent, standalone_query
+        # Đợi chút trước khi chuyển sang model dự phòng tiếp theo
+        if i < len(model_chain) - 1:
+            time.sleep(fb_config.settings.retry_delay_ms / 1000)
 
-    if not backup_api_key:
-        print(f"   [IntentService] ⚠️ Chưa có API key cho Backup '{backup_cfg.provider}' → {fallback_intent}")
-        return fallback_intent, standalone_query
-
-    backup_start = time.time()
-    try:
-        raw = _call_llm(
-            standalone_query=standalone_query,
-            system_prompt=semantic_cfg.system_prompt,   # Cùng system_prompt
-            api_key=backup_api_key,
-            base_url=backup_base_url,
-            model=backup_cfg.model,
-            temperature=backup_cfg.temperature,
-            max_tokens=backup_cfg.max_tokens,
-            timeout=backup_cfg.timeout_seconds,
-        )
-        backup_elapsed = time.time() - backup_start
-        parsed = _extract_json(raw)
-
-        if parsed is not None:
-            intent, summary = _validate_parsed(parsed, allowed_intents, fallback_intent)
-            print(
-                f"   [IntentService] ✅ Backup ({backup_cfg.model}) "
-                f"— {backup_elapsed:.3f}s "
-                f"→ intent='{intent}'"
-            )
-            return intent, summary
-        else:
-            print(
-                f"   [IntentService] ⚠️ Backup JSON vẫn không hợp lệ "
-                f"({backup_elapsed:.3f}s) — raw: {raw[:80]!r} "
-                f"→ {fallback_intent}"
-            )
-            return fallback_intent, standalone_query
-
-    except urllib.error.HTTPError as e:
-        backup_elapsed = time.time() - backup_start
-        print(f"   [IntentService] ⚠️ Backup HTTP {e.code} ({backup_elapsed:.3f}s) → {fallback_intent}")
-        return fallback_intent, standalone_query
-    except Exception as e:
-        backup_elapsed = time.time() - backup_start
-        print(
-            f"   [IntentService] ⚠️ Backup error: {type(e).__name__}: {e} "
-            f"({backup_elapsed:.3f}s) → {fallback_intent}"
-        )
-        return fallback_intent, standalone_query
+    # Nếu tất cả các model đều tạch (timeout hoặc JSON lỗi hết)
+    print(f"   [IntentService] ❌ Toàn bộ model đều thất bại → Fallback cứng ({fallback_intent})")
+    return fallback_intent, standalone_query
 
 
 # ================================================================

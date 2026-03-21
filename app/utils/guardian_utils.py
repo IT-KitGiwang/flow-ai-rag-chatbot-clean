@@ -9,6 +9,8 @@ import urllib.request
 import urllib.error
 from typing import Tuple
 from app.core.config import query_flow_config
+from app.services.langgraph.nodes.context_node import _call_gemini_api
+from app.core.prompts import prompt_manager
 
 
 class GuardianService:
@@ -55,51 +57,18 @@ class GuardianService:
                 return False, config.fallback_injection
         return True, ""
 
-    # ================================================================
-    # HÀM GỌI API DÙNG CHUNG (Hỗ trợ cả response_format JSON)
-    # ================================================================
     @staticmethod
     def _call_llm_api(
-        provider: str, 
-        model: str, 
-        messages: list, 
-        temperature: float = 0.0, 
-        max_tokens: int = 10,
-        response_format: str = None
+        config_section, 
+        system_prompt: str,
+        user_content: str,
     ) -> str:
-        """Gọi API LLM (Groq/OpenRouter/OpenAI). Hỗ trợ response_format JSON."""
-        api_key = query_flow_config.api_keys.get_key(provider)
-        base_url = query_flow_config.api_keys.get_base_url(provider)
-        
-        if not api_key:
-            raise ValueError(f"Chưa cấu hình API Key cho provider '{provider}'")
-        
-        url = f"{base_url}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "UFM-Admission-Bot/1.0"
-        }
-        data = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens
-        }
-        
-        # Thêm response_format nếu được chỉ định (ép JSON output)
-        if response_format:
-            data["response_format"] = {"type": response_format}
-        
-        req = urllib.request.Request(
-            url,
-            data=json.dumps(data).encode("utf-8"),
-            headers=headers,
-            method="POST"
+        """Gọi API LLM theo đúng cấu hình chuyên biệt của từng Layer, KHÔNG trộn fallback chung."""
+        return _call_gemini_api(
+            system_prompt=system_prompt,
+            user_content=user_content,
+            config_section=config_section
         )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            result = json.loads(response.read().decode("utf-8"))
-            return result["choices"][0]["message"]["content"].strip()
 
     # ================================================================
     # LỚP 2a: Llama 86M - Score-based (Quét nhanh)
@@ -110,11 +79,19 @@ class GuardianService:
         config = query_flow_config.prompt_guard_fast
         
         try:
+            class _TempConfig:
+                pass
+            tc = _TempConfig()
+            tc.provider = config.provider
+            tc.model = config.model
+            tc.temperature = 0.0
+            tc.max_tokens = config.max_tokens_per_chunk
+            tc.timeout_seconds = 8
+
             output = GuardianService._call_llm_api(
-                provider=config.provider,
-                model=config.model,
-                messages=[{"role": "user", "content": text}],
-                max_tokens=config.max_tokens_per_chunk
+                config_section=tc,
+                system_prompt=prompt_manager.get_system("prompt_guard_fast"),
+                user_content=text,
             )
             print(f"   [Debug 2a] Llama Guard Score: '{output}'")
             
@@ -146,17 +123,19 @@ class GuardianService:
         config = query_flow_config.prompt_guard_deep
         
         try:
-            messages = [
-                {"role": "system", "content": config.system_prompt},
-                {"role": "user", "content": text}
-            ]
+            class _TempConfig:
+                pass
+            tc = _TempConfig()
+            tc.provider = config.provider
+            tc.model = config.model
+            tc.temperature = config.temperature
+            tc.max_tokens = 20
+            tc.timeout_seconds = 8
+
             output = GuardianService._call_llm_api(
-                provider=config.provider,
-                model=config.model,
-                messages=messages,
-                temperature=config.temperature,
-                max_tokens=20,
-                response_format=config.response_format
+                config_section=tc,
+                system_prompt=prompt_manager.get_system("prompt_guard_deep"),
+                user_content=text,
             )
             print(f"   [Debug 2b] Qwen Guard trả về: '{output}'")
             

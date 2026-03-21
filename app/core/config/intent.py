@@ -68,9 +68,8 @@ class SemanticRouterConfig(BaseModel):
             "DOI_SONG_SINH_VIEN",
             "SO_SANH_TRUONG",
             "CO_HOI_VIEC_LAM",
-            # Nhóm 3: Chăm sóc & Khủng hoảng
-            "HO_TRO_TAM_LY",
-            "TU_VAN_BO_HOC",
+            # Nhóm 3: Chăm sóc & Hỗ trợ sinh viên
+            "HO_TRO_SINH_VIEN",
             "KHIEU_NAI_GOP_Y",
             # Nhóm 4: Bảo vệ hệ thống
             "BOI_NHO_DOI_THU",
