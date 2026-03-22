@@ -1,15 +1,17 @@
 # app/core/config/care.py
-# Pydantic config cho Care Node — Doc tu care_config.yaml
-# Admin sua YAML, code tu load. Khong can dung Python.
+# Pydantic config cho Care Node
+# Model config → models_config.yaml section "care:"
+# Contact info → care_config.yaml
+# Prompts      → prompts_config.yaml section "care_node:"
 
 from pydantic import BaseModel, Field
 from typing import Optional
-from app.core.config import _load_yaml
+from app.core.config import _load_yaml, models_yaml_data
 
 
 _care_data = _load_yaml("care_config.yaml")
-_care = _care_data.get("care", {})
-_contacts = _care.get("contacts", {})
+_care = models_yaml_data.get("care", {})
+_contacts = _care_data.get("care", {}).get("contacts", {})
 
 
 class CareContactInfo(BaseModel):

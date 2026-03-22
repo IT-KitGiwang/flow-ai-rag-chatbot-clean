@@ -35,7 +35,7 @@ def _generate_ufm_queries(standalone_query: str) -> list:
             system_prompt=prompt_manager.get_system("ufm_query_node"),
             user_content=prompt_manager.render_user("ufm_query_node", standalone_query=standalone_query),
             config_section=config,
-            model_group="light",
+            node_key="ufm_query",
         )
         
         # Tách dòng, loại bỏ dòng rỗng và ký tự thừa
@@ -65,7 +65,7 @@ def _generate_pr_query(standalone_query: str) -> str:
             system_prompt=prompt_manager.get_system("pr_query_node"),
             user_content=prompt_manager.render_user("pr_query_node", standalone_query=standalone_query),
             config_section=config,
-            model_group="light",
+            node_key="pr_query",
         )
         q = raw_output.strip().strip('"').strip("'").strip()
         import re

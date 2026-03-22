@@ -6,23 +6,29 @@ Vị trí trong Graph:
 
 Nhiệm vụ:
   Nhận intent từ Intent Node (HO_TRO_SINH_VIEN hoặc KHIEU_NAI_GOP_Y).
-  Gọi Qwen 3.5 Flash (qua OpenRouter) để sinh câu trả lời đồng cảm,
+  Gọi Qwen Flash (qua OpenRouter) để sinh câu trả lời đồng cảm,
   truyền thông tin liên hệ từ care_config.yaml vào system prompt.
 
-Model: qwen/qwen3.5-flash-02-23 (via OpenRouter)
+Config sources:
+  - Model config  → models_config.yaml section "care:"
+  - System prompt → prompts_config.yaml section "care_node:"
+  - Contact info  → care_config.yaml
+  - API keys      → .env (qua query_flow_config.api_keys)
+
 Chi phí: Cực thấp (~0.001$/query, model nhỏ nhất)
 Latency: ~500ms-1s
 Fallback: Nếu LLM lỗi, trả thẳng contact info từ config (bypass cứng)
 """
 
 import json
-import os
 import time
 import urllib.request
 import urllib.error
 
 from app.services.langgraph.state import GraphState
+from app.core.config import query_flow_config, prompts_yaml_data
 from app.core.config.care import CareConfig
+from app.core.prompts import prompt_manager
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -31,45 +37,34 @@ logger = get_logger(__name__)
 # Khởi tạo config 1 lần duy nhất khi module load
 _care_config = CareConfig()
 
-# OpenRouter API
-_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# Tone guides từ prompts_config.yaml
+_tone_guides = prompts_yaml_data.get("care_node", {}).get("tone_guides", {})
 
 
-def _build_system_prompt(intent: str, contact_text: str) -> str:
-    """Tạo system prompt cho Qwen dựa trên intent và contact info."""
-    if intent.lower() == "khieu_nai_gop_y":
-        tone_guide = (
-            "Sinh viên đang muốn phản ánh hoặc khiếu nại. "
-            "Hãy thể hiện sự lắng nghe, ghi nhận ý kiến, "
-            "và hướng dẫn họ gửi phản ánh đến đúng nơi."
-        )
-    else:
-        tone_guide = (
-            "Sinh viên đang cần hỗ trợ (tâm lý, học vụ, bảo lưu, nợ môn...). "
-            "Hãy thể hiện sự đồng cảm, trấn an, "
-            "và hướng dẫn họ đến đúng đơn vị hỗ trợ."
-        )
-
-    return (
-        "Bạn là trợ lý tư vấn chăm sóc sinh viên của Đại học Tài chính - Marketing (UFM).\n"
-        "Xưng hô: Mình - Bạn.\n\n"
-        "QUY TẮC:\n"
-        "- Trả lời ngắn gọn (3-5 câu), ấm áp và chân thành.\n"
-        "- KHÔNG tư vấn chuyên môn (học phí, điểm chuẩn). Chỉ đồng cảm và hướng dẫn liên hệ.\n"
-        "- PHẢI dẫn thông tin liên hệ bên dưới vào câu trả lời một cách tự nhiên.\n"
-        "- KHÔNG bịa thêm số điện thoại hay email ngoài danh sách.\n"
-        "- Kết thúc bằng lời động viên nhẹ nhàng.\n\n"
-        f"NGỮ CẢNH: {tone_guide}\n\n"
-        f"THÔNG TIN LIÊN HỆ (bắt buộc dẫn vào câu trả lời):\n{contact_text}"
-    )
+def _get_tone_guide(intent: str) -> str:
+    """Lấy hướng dẫn giọng điệu theo intent từ prompts_config.yaml."""
+    intent_lower = intent.lower()
+    return str(
+        _tone_guides.get(intent_lower, _tone_guides.get("default", ""))
+    ).strip()
 
 
-def _call_qwen(system_prompt: str, user_query: str) -> str:
-    """Gọi Qwen 3.5 Flash qua OpenRouter API."""
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
+def _call_care_llm(system_prompt: str, user_query: str) -> str:
+    """Gọi Care LLM qua OpenRouter/Groq API — dùng config hợp nhất."""
+    provider = _care_config.provider
+    api_key = query_flow_config.api_keys.get_key(provider)
+    base_url = query_flow_config.api_keys.get_base_url(provider)
+
     if not api_key:
-        raise ValueError("OPENROUTER_API_KEY chưa được cấu hình")
+        raise ValueError(f"Chưa cấu hình API Key cho provider '{provider}'")
 
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "User-Agent": "UFM-Admission-Bot/1.0",
+        "HTTP-Referer": "https://ufm.edu.vn",
+    }
     payload = {
         "model": _care_config.model,
         "messages": [
@@ -80,13 +75,8 @@ def _call_qwen(system_prompt: str, user_query: str) -> str:
         "max_tokens": _care_config.max_tokens,
     }
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-    }
-
     req = urllib.request.Request(
-        _OPENROUTER_URL,
+        url,
         data=json.dumps(payload).encode("utf-8"),
         headers=headers,
         method="POST",
@@ -98,19 +88,9 @@ def _call_qwen(system_prompt: str, user_query: str) -> str:
     return body["choices"][0]["message"]["content"].strip()
 
 
-def _build_fallback_message(contact_text: str) -> str:
-    """Tin nhắn dự phòng khi LLM lỗi."""
-    return (
-        "Mình hiểu bạn đang cần hỗ trợ. "
-        "Bạn có thể liên hệ trực tiếp qua các kênh sau:\n\n"
-        f"{contact_text}\n\n"
-        "Đừng ngại liên hệ nhé, đội ngũ UFM luôn sẵn sàng hỗ trợ bạn!"
-    )
-
-
 def care_node(state: GraphState) -> GraphState:
     """
-    Care Node — Gọi Qwen 3.5 Flash sinh câu trả lời đồng cảm.
+    Care Node — Gọi Qwen Flash sinh câu trả lời đồng cảm.
 
     Input:
       - state["intent"]: Tên intent (HO_TRO_SINH_VIEN, KHIEU_NAI_GOP_Y)
@@ -125,14 +105,29 @@ def care_node(state: GraphState) -> GraphState:
     user_query = state.get("standalone_query", state.get("user_query", ""))
     start_time = time.time()
 
-    # Lấy thông tin liên hệ theo intent
+    # Lấy thông tin liên hệ theo intent (từ care_config.yaml)
     contact = _care_config.get_contact(intent)
     contact_text = contact.to_text()
 
+    # Lấy tone guide theo intent (từ prompts_config.yaml)
+    tone_guide = _get_tone_guide(intent)
+
     # Gọi Qwen LLM
     try:
-        system_prompt = _build_system_prompt(intent, contact_text)
-        care_response = _call_qwen(system_prompt, user_query)
+        # Render system prompt từ prompts_config.yaml (biến Jinja2)
+        sys_prompt_raw = prompt_manager.get_system("care_node")
+
+        # System prompt có {{ contact_text }} và {{ tone_guide }}
+        # prompt_manager.get_system() trả raw string, cần render thủ công
+        from jinja2 import Environment, BaseLoader
+        _env = Environment(loader=BaseLoader(), trim_blocks=True, lstrip_blocks=True)
+        sys_template = _env.from_string(sys_prompt_raw)
+        system_prompt = sys_template.render(
+            contact_text=contact_text,
+            tone_guide=tone_guide,
+        )
+
+        care_response = _call_care_llm(system_prompt, user_query)
         elapsed = time.time() - start_time
         logger.info(
             "Care Node [%.3fs] Qwen OK, intent='%s', %d ky tu",
@@ -145,7 +140,21 @@ def care_node(state: GraphState) -> GraphState:
             "Care Node [%.3fs] Qwen loi: %s -> Fallback",
             elapsed, e, exc_info=True
         )
-        care_response = _build_fallback_message(contact_text)
+        # Fallback: render fallback_message từ prompts_config.yaml
+        fallback_raw = prompts_yaml_data.get("care_node", {}).get("fallback_message", "")
+        if fallback_raw and "{{ contact_text }}" in str(fallback_raw):
+            from jinja2 import Environment, BaseLoader
+            _env = Environment(loader=BaseLoader(), trim_blocks=True, lstrip_blocks=True)
+            care_response = _env.from_string(str(fallback_raw)).render(
+                contact_text=contact_text
+            )
+        else:
+            care_response = (
+                "Mình hiểu bạn đang cần hỗ trợ. "
+                "Bạn có thể liên hệ trực tiếp qua các kênh sau:\n\n"
+                f"{contact_text}\n\n"
+                "Đừng ngại liên hệ nhé, đội ngũ UFM luôn sẵn sàng hỗ trợ bạn!"
+            )
 
     return {
         **state,

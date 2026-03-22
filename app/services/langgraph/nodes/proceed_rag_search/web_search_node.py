@@ -141,7 +141,7 @@ def _call_search_model(system_prompt: str, user_content: str, config_section) ->
         system_prompt=system_prompt,
         user_content=user_content,
         config_section=config_section,
-        model_group="search"
+        node_key="web_search"
     )
 
 

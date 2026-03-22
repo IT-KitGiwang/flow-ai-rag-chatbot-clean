@@ -131,51 +131,87 @@ def _call_gemini_api_with_fallback(
     system_prompt: str,
     user_content: str,
     config_section,
-    model_group: str = "light",
+    node_key: str = "",
 ) -> str:
     """
     Gọi API LLM với cơ chế fallback tự động.
 
-    Khi model chính bị timeout/lỗi/402, tự động thử model tiếp theo
-    trong danh sách fallback từ fallback_models_config.yaml.
+    Luồng:
+      1. Thử primary model từ config_section (provider, model, temperature...)
+      2. Nếu lỗi → đọc fallbacks[] từ models_config.yaml[node_key]
+      3. Thử lần lượt từng fallback model (giữ nguyên temperature/max_tokens)
 
-    Mỗi model có provider riêng (openrouter, groq...) để linh hoạt.
+    Args:
+        system_prompt: System prompt cho LLM
+        user_content: User prompt đã render
+        config_section: Pydantic config chứa provider, model, temperature, max_tokens, timeout_seconds
+        node_key: Key trong models_config.yaml để đọc fallbacks[] (vd: "sanitizer", "main_bot")
+                  Nếu rỗng → không có fallback, chỉ thử primary.
     """
-    fb_config = query_flow_config.fallback_models
-    model_chain = fb_config.get_model_chain(model_group)
+    fb_settings = query_flow_config.fallback_models.settings
 
-    if not model_chain:
+    # ── Bước 1: Thử primary model (từ config_section) ──
+    try:
         return _call_gemini_api(system_prompt, user_content, config_section)
+    except Exception as primary_error:
+        if fb_settings.log_fallback:
+            logger.warning(
+                "Primary FAIL (%s/%s): %s",
+                getattr(config_section, 'provider', '?'),
+                getattr(config_section, 'model', '?'),
+                primary_error,
+            )
 
-    last_error = None
+        # Nếu không có node_key → không có fallback → raise ngay
+        if not node_key:
+            raise
 
-    for i, entry in enumerate(model_chain):
+        last_error = primary_error
+
+    # ── Bước 2: Đọc fallbacks[] từ models_config.yaml ──
+    from app.core.config import models_yaml_data
+    node_cfg = models_yaml_data.get(node_key, {})
+    fallbacks_raw = node_cfg.get("fallbacks", []) or []
+
+    if not fallbacks_raw:
+        raise last_error
+
+    max_retries = fb_settings.max_retries
+
+    for i, fb_entry in enumerate(fallbacks_raw[:max_retries]):
         try:
             class _TempConfig:
                 pass
             temp = _TempConfig()
-            temp.provider = entry.provider           # Provider từ fallback config
-            temp.model = entry.model                 # Model từ fallback config
-            temp.temperature = config_section.temperature
-            temp.max_tokens = config_section.max_tokens
-            temp.timeout_seconds = config_section.timeout_seconds
+            temp.provider = fb_entry.get("provider", "openrouter")
+            temp.model = fb_entry.get("model", "")
+            temp.temperature = getattr(config_section, 'temperature', 0.0)
+            temp.max_tokens = getattr(config_section, 'max_tokens', 500)
+            temp.timeout_seconds = getattr(config_section, 'timeout_seconds', 15)
+
+            delay = fb_settings.retry_delay_ms / 1000
+            time.sleep(delay)
 
             result = _call_gemini_api(system_prompt, user_content, temp)
 
-            if i > 0 and fb_config.settings.log_fallback:
-                logger.info("Fallback #%d OK: %s/%s", i+1, entry.provider, entry.model)
+            if fb_settings.log_fallback:
+                logger.info(
+                    "Fallback #%d OK: %s/%s (node_key='%s')",
+                    i + 1, temp.provider, temp.model, node_key,
+                )
 
             return result
 
         except Exception as e:
             last_error = e
-            if fb_config.settings.log_fallback:
-                label = "Primary" if i == 0 else f"Fallback #{i}"
-                logger.warning("Fallback %s FAIL (%s/%s): %s", label, entry.provider, entry.model, e)
-
-            if i < len(model_chain) - 1:
-                delay = fb_config.settings.retry_delay_ms / 1000
-                time.sleep(delay)
+            if fb_settings.log_fallback:
+                logger.warning(
+                    "Fallback #%d FAIL (%s/%s): %s",
+                    i + 1,
+                    fb_entry.get("provider", "?"),
+                    fb_entry.get("model", "?"),
+                    e,
+                )
 
     raise last_error
 

@@ -87,7 +87,7 @@ def synthesizer_node(state: GraphState) -> GraphState:
             system_prompt=prompt_manager.get_system(prompt_domain),
             user_content=user_content,
             config_section=config,
-            model_group="medium",
+            node_key=prompt_domain,
         )
 
         elapsed = time.time() - start_time

@@ -29,7 +29,7 @@ class GuardianService:
 
     @staticmethod
     def check_layer_0_input_validation(text: str) -> Tuple[bool, str]:
-        """LỚP 0: Kiểm tra độ dài ký tự."""
+        """LỚP 0: Kiểm tra độ dài ký tự (hard limit chống DoS)."""
         config = query_flow_config.input_validation
         if len(text) > config.max_input_chars:
             return False, config.fallback_too_long

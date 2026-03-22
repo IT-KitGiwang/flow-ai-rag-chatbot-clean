@@ -9,7 +9,7 @@ retriever:
     enabled: true
     top_k: 20                         # Lấy top 20 chunks từ HNSW index
     similarity_threshold: 0.85        # Ngưỡng tin cậy (cosine > 0.85)
-    use_multi_query: false            # true = dùng tất cả embeddings (multi-query boost)
+    use_multi_query: true            # true = dùng tất cả embeddings (multi-query boost)
 
   # ── Cấu hình BM25 Full-Text Search (Postgres tsvector) ──
   bm25_search:

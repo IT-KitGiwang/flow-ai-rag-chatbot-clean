@@ -16,7 +16,6 @@ load_dotenv()
 # ============================================================
 # 2. Load YAML Config Files (Non-sensitive settings)
 #    Tách riêng vào thư mục yaml/ cho gọn gàng
-#    4 YAML + 1 JSON: guardian, intent, query_context, bot, admissions_mapping
 # ============================================================
 _CONFIG_DIR = Path(__file__).parent / "yaml"
 
@@ -29,12 +28,14 @@ def _load_yaml(filename: str) -> dict:
     return {}
 
 # Load YAML tách biệt theo domain
-guardian_yaml_data      = _load_yaml("guardian_config.yaml")        # Layer 0-2: Bảo vệ
+guardian_yaml_data      = _load_yaml("guardian_config.yaml")         # Layer 0-2: Bảo vệ
 intent_yaml_data        = _load_yaml("intent_config.yaml")           # Layer 3:   Phân loại ý định (prompt/allowed)
 intent_routing_yaml_data = _load_yaml("intent_routing_config.yaml")  # Layer 3:   Ngưỡng + Anchor + Action map
-query_context_yaml_data = _load_yaml("query_context_config.yaml")   # Context: Memory + Reformulation + Multi-Query
-bot_yaml_data           = _load_yaml("bot_config.yaml")              # Layer 4:   Main Bot / RAG
-rag_search_yaml_data    = _load_yaml("rag_search_config.yaml")       # RAG Search: PR Query + Web Search + Synthesizer + Sanitizer
+query_context_yaml_data = _load_yaml("query_context_config.yaml")    # Context: Memory + Reformulation + Multi-Query
+
+# ── 2 file hợp nhất mới (nguồn sự thật chính) ──
+models_yaml_data        = _load_yaml("models_config.yaml")           # Toàn bộ model primary + fallback theo thứ tự pipeline
+prompts_yaml_data       = _load_yaml("prompts_config.yaml")          # Toàn bộ prompt + fallback messages
 
 # Backward-compatible: giữ yaml_data trỏ tới guardian (các module cũ có thể dùng)
 yaml_data = guardian_yaml_data
@@ -81,7 +82,7 @@ class APIKeyConfig(BaseModel):
 # ============================================================
 # LỚP 4: Main Bot (RAG / LLM Generation)
 # ============================================================
-_mb = bot_yaml_data.get("main_bot", {})
+_mb = models_yaml_data.get("main_bot", {})
 
 class MainBotConfig(BaseModel):
     enabled: bool = _mb.get("enabled", True)
@@ -95,7 +96,7 @@ class MainBotConfig(BaseModel):
 # ============================================================
 # CẤU HÌNH TỔNG (Pipeline Orchestrator)
 # ============================================================
-from app.core.config.guardian import InputValidationConfig, KeywordFilterConfig, PromptGuardFastConfig, PromptGuardDeepConfig
+from app.core.config.guardian import InputValidationConfig, KeywordFilterConfig, PromptGuardFastConfig, PromptGuardDeepConfig, LongQuerySummarizerConfig
 from app.core.config.intent import VectorRouterConfig, IntentValidatorConfig, SemanticRouterConfig
 from app.core.config.query_context import MemoryConfig, QueryReformulationConfig, MultiQueryConfig, EmbeddingConfig
 from app.core.config.intent_routing import IntentThresholdConfig, IntentActionConfig, ResponseTemplateConfig
@@ -113,6 +114,8 @@ class QueryFlowConfig(BaseModel):
     keyword_filter: KeywordFilterConfig = KeywordFilterConfig()
     prompt_guard_fast: PromptGuardFastConfig = PromptGuardFastConfig()
     prompt_guard_deep: PromptGuardDeepConfig = PromptGuardDeepConfig()
+    long_query_summarizer: LongQuerySummarizerConfig = LongQuerySummarizerConfig()
+    vector_router: VectorRouterConfig = VectorRouterConfig()
     intent_validator: IntentValidatorConfig = IntentValidatorConfig()
     semantic_router: SemanticRouterConfig = SemanticRouterConfig()
     intent_threshold: IntentThresholdConfig = IntentThresholdConfig()

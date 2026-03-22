@@ -150,7 +150,7 @@ def generate_form(form_metadata: dict, extracted_fields: dict) -> str:
             system_prompt=sys_prompt,
             user_content=user_content,
             config_section=_DrafterConfig(),
-            model_group="primary",
+            node_key="form",
         )
 
         elapsed = time.time() - start_time

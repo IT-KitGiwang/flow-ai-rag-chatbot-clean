@@ -4,7 +4,7 @@
 
 from pydantic import BaseModel, Field
 from typing import Dict, List
-from app.core.config import intent_routing_yaml_data
+from app.core.config import intent_routing_yaml_data, prompts_yaml_data
 
 
 # ============================================================
@@ -55,7 +55,7 @@ class IntentActionConfig(BaseModel):
 # ============================================================
 # RESPONSE TEMPLATES (GREET & CLARIFY — Không cần gọi LLM)
 # ============================================================
-_tmpl = intent_routing_yaml_data.get("response_templates", {})
+_tmpl = prompts_yaml_data.get("response_templates", {})
 
 class ResponseTemplateConfig(BaseModel):
     greet_messages: List[str] = Field(

@@ -394,11 +394,13 @@ def fetch_parent_contents(
             SELECT
                 chunk_id,
                 content,
+                source,
                 section_path,
                 section_name,
                 program_name,
                 program_level,
                 ma_nganh,
+                academic_year,
                 chunk_level,
                 char_count
             FROM knowledge_chunks
@@ -445,22 +447,35 @@ def format_rag_context(
             else:
                 break
 
-        # Gắn metadata header trích dẫn cấu trúc
+        # Gắn metadata header trích dẫn cấu trúc (Tên văn bản + Mục + Ngành)
         if pr_cfg.include_metadata:
             citation_parts = []
 
+            # Tên file gốc (Tên văn bản/công văn)
+            source = doc.get("source") or ""
+            if source:
+                citation_parts.append(f"Văn bản: {source}")
+
             section_path = doc.get("section_path") or ""
             if section_path:
-                formatted_path = section_path.replace(" > ", ", ")
+                formatted_path = section_path.replace(" > ", " > ")
                 citation_parts.append(formatted_path)
 
             section_name = doc.get("section_name") or ""
             if section_name:
-                citation_parts.append(section_name)
+                citation_parts.append(f"Mục: {section_name}")
 
             program_name = doc.get("program_name") or ""
             if program_name:
                 citation_parts.append(f"Ngành: {program_name}")
+
+            ma_nganh = doc.get("ma_nganh") or ""
+            if ma_nganh:
+                citation_parts.append(f"Mã ngành: {ma_nganh}")
+
+            academic_year = doc.get("academic_year") or ""
+            if academic_year:
+                citation_parts.append(f"Năm: {academic_year}")
 
             if citation_parts:
                 citation = " | ".join(citation_parts)

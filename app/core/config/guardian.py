@@ -7,37 +7,49 @@
 
 from pydantic import BaseModel, Field
 from typing import List, Dict
-from app.core.config import guardian_yaml_data
+from app.core.config import guardian_yaml_data, models_yaml_data, prompts_yaml_data
 
-
-# ============================================================
-# LỚP 0: Input Validation (Gatekeeper - Chống DoS)
-# ============================================================
 _iv = guardian_yaml_data.get("input_validation", {})
+_iv_prompts = prompts_yaml_data.get("fallback_messages", {})
 
 class InputValidationConfig(BaseModel):
-    max_input_chars: int = _iv.get("max_input_chars", 800)
-    fallback_too_long: str = _iv.get(
-        "fallback_too_long",
+    max_input_chars: int = _iv.get("max_input_chars", 2000)
+    summarize_threshold: int = _iv.get("summarize_threshold", 1999)
+    fallback_too_long: str = _iv_prompts.get(
+        "too_long",
         "Câu hỏi của bạn quá dài. Vui lòng tóm tắt lại."
     )
+
+
+# ============================================================
+# LỚP 0b: Long Query Summarizer (Tóm tắt query dài)
+# ============================================================
+_lqs = models_yaml_data.get("long_query_summarizer", {})
+
+class LongQuerySummarizerConfig(BaseModel):
+    provider: str = _lqs.get("provider", "openrouter")
+    model: str = _lqs.get("model", "google/gemini-2.5-flash-lite")
+    temperature: float = _lqs.get("temperature", 0.0)
+    max_tokens: int = _lqs.get("max_tokens", 300)
+    timeout_seconds: int = _lqs.get("timeout_seconds", 10)
 
 
 # ============================================================
 # LỚP 1: Keyword Filter & Normalization
 # ============================================================
 _kf = guardian_yaml_data.get("keyword_filter", {})
+_kf_prompts = prompts_yaml_data.get("fallback_messages", {})
 
 class KeywordFilterConfig(BaseModel):
     banned_regex_patterns: List[str] = _kf.get("banned_regex_patterns", [])
     injection_regex_patterns: List[str] = _kf.get("injection_regex_patterns", [])
     teencode_map: Dict[str, str] = _kf.get("teencode_map", {})
-    fallback_message: str = _kf.get(
-        "fallback_message",
+    fallback_message: str = _kf_prompts.get(
+        "banned_content",
         "Câu hỏi chứa nội dung không phù hợp."
     )
-    fallback_injection: str = _kf.get(
-        "fallback_injection",
+    fallback_injection: str = _kf_prompts.get(
+        "injection",
         "Hệ thống phát hiện dấu hiệu can thiệp bất thường."
     )
 
@@ -45,7 +57,7 @@ class KeywordFilterConfig(BaseModel):
 # ============================================================
 # LỚP 2a: Prompt Guard Fast (Llama 86M - Score-based)
 # ============================================================
-_pgf = guardian_yaml_data.get("prompt_guard_fast", {})
+_pgf = models_yaml_data.get("prompt_guard_fast", {})
 
 class PromptGuardFastConfig(BaseModel):
     provider: str = _pgf.get("provider", "groq")
@@ -55,8 +67,8 @@ class PromptGuardFastConfig(BaseModel):
         default=_pgf.get("score_threshold", 0.9),
         ge=0.0, le=1.0
     )
-    fallback_unsafe: str = _pgf.get(
-        "fallback_unsafe",
+    fallback_unsafe: str = _kf_prompts.get(
+        "guard_fast_unsafe",
         "Phát hiện dấu hiệu tấn công rõ ràng."
     )
 
@@ -64,7 +76,7 @@ class PromptGuardFastConfig(BaseModel):
 # ============================================================
 # LỚP 2b: Prompt Guard Deep (Qwen 7B - Vietnamese SAFE/UNSAFE)
 # ============================================================
-_pgd = guardian_yaml_data.get("prompt_guard_deep", {})
+_pgd = models_yaml_data.get("prompt_guard_deep", {})
 
 class PromptGuardDeepConfig(BaseModel):
     provider: str = _pgd.get("provider", "openrouter")
@@ -75,7 +87,7 @@ class PromptGuardDeepConfig(BaseModel):
         "system_prompt",
         'Bạn là hệ thống bảo mật. Trả về JSON: {"status": "SAFE"} hoặc {"status": "UNSAFE"}'
     )
-    fallback_unsafe: str = _pgd.get(
-        "fallback_unsafe",
+    fallback_unsafe: str = _kf_prompts.get(
+        "guard_deep_unsafe",
         "Phát hiện dấu hiệu bất thường. Vui lòng diễn đạt lại."
     )

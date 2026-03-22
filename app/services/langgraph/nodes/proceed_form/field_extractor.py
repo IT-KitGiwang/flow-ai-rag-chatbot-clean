@@ -26,9 +26,10 @@ def extract_fields(chat_history: list, user_query: str) -> dict:
     # ── Xây dựng danh sách fields cần trích xuất ──
     fields_list_str = ""
     for idx, f in enumerate(form_cfg.fields, 1):
+        is_required = (f.field_type == "personal")
         fields_list_str += (
             f"{idx}. {f.key}: {f.extract_hint} "
-            f"(Bắt buộc: {'Có' if f.required else 'Không'})\n"
+            f"(Bắt buộc: {'Có' if is_required else 'Không'})\n"
         )
 
     # ── Xây dựng context từ history ──
@@ -65,7 +66,7 @@ def extract_fields(chat_history: list, user_query: str) -> dict:
             system_prompt=sys_prompt,
             user_content=user_content,
             config_section=_ExtractorConfig(),
-            model_group="light",
+            node_key="form",
         )
 
         # ── Parse JSON — strip markdown code fences nếu LLM trả về ──

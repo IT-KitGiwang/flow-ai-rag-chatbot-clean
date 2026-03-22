@@ -146,23 +146,37 @@ def classify_by_llm(standalone_query: str) -> tuple:
     allowed_intents = set(semantic_cfg.allowed_intents)
     fallback_intent = validator_cfg.fallback_intent
 
-    # Danh sách model theo nhóm "light" (Primary + Fallbacks) từ fallback config chung
-    fb_config = query_flow_config.fallback_models
-    model_chain = fb_config.get_model_chain("light")
+    # Đọc primary + fallbacks trực tiếp từ models_config.yaml["semantic_router"]
+    from app.core.config import models_yaml_data
+    node_cfg = models_yaml_data.get("semantic_router", {})
+    fb_settings = query_flow_config.fallback_models.settings
+
+    # Xây model chain: [primary, fallback1, fallback2, ...]
+    model_chain = []
+    if node_cfg.get("model"):
+        model_chain.append({
+            "provider": node_cfg.get("provider", "openrouter"),
+            "model": node_cfg["model"],
+        })
+    for fb in (node_cfg.get("fallbacks", []) or []):
+        model_chain.append({
+            "provider": fb.get("provider", "openrouter"),
+            "model": fb.get("model", ""),
+        })
 
     if not model_chain:
-        print(f"   [IntentService] ⚠️ Không có model nào trong nhóm 'light' → {fallback_intent}")
+        print(f"   [IntentService] ⚠️ Không có model nào trong semantic_router → {fallback_intent}")
         return fallback_intent, standalone_query
 
     # ── DUYỆT QUA TỪNG MODEL (Primary → Fallback 1 → Fallback 2) ──
     for i, entry in enumerate(model_chain):
         label = "Primary" if i == 0 else f"Fallback #{i}"
         
-        api_key = query_flow_config.api_keys.get_key(entry.provider)
-        base_url = query_flow_config.api_keys.get_base_url(entry.provider)
+        api_key = query_flow_config.api_keys.get_key(entry["provider"])
+        base_url = query_flow_config.api_keys.get_base_url(entry["provider"])
 
         if not api_key:
-            print(f"   [IntentService] ⚠️ Chưa có API key cho {entry.provider} → Bỏ qua {label}")
+            print(f"   [IntentService] ⚠️ Chưa có API key cho {entry['provider']} → Bỏ qua {label}")
             continue
 
         start_t = time.time()
@@ -174,7 +188,7 @@ def classify_by_llm(standalone_query: str) -> tuple:
                 system_prompt=prompt_manager.get_system("intent_classification"),
                 api_key=api_key,
                 base_url=base_url,
-                model=entry.model,
+                model=entry["model"],
                 temperature=0.0,  # Ép 0.0 để JSON luôn chuẩn xác
                 max_tokens=150,
                 timeout=10,
@@ -185,7 +199,7 @@ def classify_by_llm(standalone_query: str) -> tuple:
             if parsed is not None:
                 intent, summary = _validate_parsed(parsed, allowed_intents, fallback_intent)
                 print(
-                    f"   [IntentService] ✅ {label} ({entry.provider}/{entry.model}) "
+                    f"   [IntentService] ✅ {label} ({entry['provider']}/{entry['model']}) "
                     f"— {elapsed:.3f}s "
                     f"→ intent='{intent}'"
                 )
@@ -210,7 +224,7 @@ def classify_by_llm(standalone_query: str) -> tuple:
 
         # Đợi chút trước khi chuyển sang model dự phòng tiếp theo
         if i < len(model_chain) - 1:
-            time.sleep(fb_config.settings.retry_delay_ms / 1000)
+            time.sleep(fb_settings.retry_delay_ms / 1000)
 
     # Nếu tất cả các model đều tạch (timeout hoặc JSON lỗi hết)
     print(f"   [IntentService] ❌ Toàn bộ model đều thất bại → Fallback cứng ({fallback_intent})")

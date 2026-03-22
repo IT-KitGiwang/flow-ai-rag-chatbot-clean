@@ -143,7 +143,7 @@ def sanitizer_node(state: GraphState) -> GraphState:
             system_prompt=prompt_manager.get_system("sanitizer_node"),
             user_content=user_content,
             config_section=config,
-            model_group="medium",
+            node_key="sanitizer",
         )
 
         result = _parse_sanitizer_response(raw_output)

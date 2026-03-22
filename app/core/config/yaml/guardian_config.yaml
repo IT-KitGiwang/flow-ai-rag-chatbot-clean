@@ -1,17 +1,18 @@
 # ============================================================
-# GUARDIAN PIPELINE CONFIG (Non-sensitive settings)
-# File này CHỈ chứa config BẢO VỆ (Layer 0 → Layer 2)
-# KHÔNG chứa API key - an toàn để commit lên Git
+# GUARDIAN PIPELINE CONFIG — Chỉ chứa Logic Filter (phi-Model)
+# File: app/core/config/yaml/guardian_config.yaml
+#
+# ⚠️ Model configs → đã chuyển sang models_config.yaml
+# ⚠️ Fallback messages → đã chuyển sang prompts_config.yaml
+# ⚠️ File này CHỈ còn: regex patterns, teencode map, thresholds
 # ============================================================
 
 # ----------------------------------------------------------
 # LỚP 0: Input Validation (Gatekeeper - Chống DoS)
 # ----------------------------------------------------------
 input_validation:
-  max_input_chars: 800
-  fallback_too_long: >
-    Câu hỏi của bạn hơi dài quá rồi (vượt 800 ký tự).
-    Bạn thử tóm gọn ý chính lại giúp mình nhé, mình sẽ hỗ trợ nhanh hơn!
+  max_input_chars: 3000             # Hard limit chống DoS (CHẶN cứng nếu vượt)
+  summarize_threshold: 1500         # >= threshold → gọi LLM tóm tắt trước khi xử lý
 
 # ----------------------------------------------------------
 # LỚP 1: Keyword Filter & Normalization
@@ -30,18 +31,12 @@ keyword_filter:
 
   # Regex chống Injection/Jailbreak sơ đẳng (0ms)
   # CHỈ GIỮ các từ khóa kỹ thuật KHÔNG BAO GIỜ xuất hiện trong câu hỏi tuyển sinh bình thường
-  # Các trường hợp mờ ám (bỏ qua, hệ thống, đóng vai...) → nhường Qwen 2b xử lý
   injection_regex_patterns:
     - 'ignore.*(instruction|rule|prompt)'
     - 'system\s*prompt'
     - 'api[\s_-]*key|secret[\s_-]*key'
     - 'jailbreak|bypass|override'
     - '\bsudo\b|\broot\b'
-
-  fallback_injection: >
-    Mình nhận thấy câu hỏi có chứa một số từ khóa kỹ thuật bất thường.
-    Bạn vui lòng đặt lại câu hỏi tự nhiên hơn liên quan đến tuyển sinh UFM nhé,
-    mình rất sẵn lòng hỗ trợ!
 
   teencode_map:
     ko: "không"
@@ -58,37 +53,3 @@ keyword_filter:
     vs: "với"
     r: "rồi"
     j: "gì"
-
-  fallback_message: >
-    Xin lỗi bạn, câu hỏi này có vẻ chứa nội dung chưa phù hợp với
-    phạm vi tư vấn tuyển sinh. Mình chỉ hỗ trợ được các câu hỏi về
-    ngành học, học phí, điều kiện xét tuyển và thủ tục hành chính tại UFM.
-    Bạn thử hỏi lại nhé!
-
-# ----------------------------------------------------------
-# LỚP 2: Prompt Guard (Two-Stage: Fast Score → Deep Vietnamese Check)
-# Giai đoạn 2a: Llama-86M quét nhanh bằng điểm số (0.0 - 1.0)
-# Giai đoạn 2b: Qwen-7B quét sâu bằng tiếng Việt (SAFE / UNSAFE)
-# ----------------------------------------------------------
-
-# --- 2a: Quét nhanh bằng Score (Llama Prompt Guard 86M) ---
-prompt_guard_fast:
-  provider: "groq"
-  model: "meta-llama/llama-prompt-guard-2-86m"
-  max_tokens_per_chunk: 512
-  score_threshold: 0.9                          # Score >= 0.9 → CHẶN ngay (tấn công rõ ràng)
-  fallback_unsafe: >
-    Mình phát hiện nội dung câu hỏi có dấu hiệu bất thường.
-    Bạn hãy diễn đạt tự nhiên hơn về vấn đề tuyển sinh cần tư vấn,
-    mình sẽ cố gắng hỗ trợ tốt nhất!
-
-# --- 2b: Quét sâu tiếng Việt (Qwen 2.5 7B Instruct) ---
-prompt_guard_deep:
-  provider: "openrouter"
-  model: "qwen/qwen-2.5-7b-instruct"
-  temperature: 0.0
-  response_format: "json_object"
-  # system_prompt → Đã chuyển sang app/core/prompts/prompts.yaml (domain: prompt_guard_deep)
-  fallback_unsafe: >
-    Câu hỏi của bạn có vẻ chưa phù hợp với phạm vi tư vấn tuyển sinh.
-    Bạn thử diễn đạt lại rõ ràng hơn nhé, mình luôn sẵn sàng giúp đỡ!

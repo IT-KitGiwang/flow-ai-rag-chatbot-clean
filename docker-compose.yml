@@ -70,7 +70,9 @@ services:
     restart: always
 
     environment:
-      # Database connection
+      # Database connection (override .env cho Docker internal network)
+      POSTGRES_HOST: "postgres_vector"
+      POSTGRES_PORT: "5432"
       DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-ufm_admin}:${POSTGRES_PASSWORD:-ufm_secure_password_2026}@postgres_vector:5432/${POSTGRES_DB:-ufm_admission_db}"
       DATABASE_URL_SYNC: "postgresql://${POSTGRES_USER:-ufm_admin}:${POSTGRES_PASSWORD:-ufm_secure_password_2026}@postgres_vector:5432/${POSTGRES_DB:-ufm_admission_db}"
 

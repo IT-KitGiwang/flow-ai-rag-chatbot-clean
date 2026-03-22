@@ -7,8 +7,10 @@ Thiết kế cho bài toán: Chatbot Tư vấn Tuyển sinh Đại học (Hội 
   User Query
     │
     ▼
-  [Fast-Scan Node] ── Chặn thô trên user_query (Regex, 0ms, $0)
-    │                  Layer 0: Độ dài > 800 ký tự
+  [Fast-Scan Node] ── Chặn thô trên user_query (Regex, ~0ms, $0)
+    │                  Layer 0a: Độ dài > 2000 ký tự → CHẶN (DoS)
+    │                  Layer 0b: Độ dài >= 1999 → LLM tóm tắt
+    │                            (google/gemini-2.5-flash-lite ~$0.000005)
     │                  Layer 1a: Từ cấm nhạy cảm (bạo lực, ma tuý)
     │                  Layer 1b: Injection regex (ignore instructions, sudo)
     │                  → BLOCKED? → END (trả fallback, KHÔNG tốn tiền Gemini)
@@ -98,6 +100,12 @@ class GraphState(TypedDict, total=False):
 
     # 3a. Câu hỏi thô (API Layer ghi)
     user_query: str                    # VD: "Thế còn ngành Marketing?"
+
+    # 3a.1 Metadata tóm tắt query dài (Fast-Scan Node ghi)
+    original_query: str                # Lưu query gốc nếu bị summarize (để logging/debug)
+                                       # = "" nếu không bị summarize
+    query_was_summarized: bool         # True nếu user_query đã qua LLM summarizer
+                                       # (query gốc >= 1999 chars → đã nén lại)
 
     # 3b. Chuẩn hóa teencode (Fast-Scan Node ghi)
     normalized_query: str              # VD: "thế còn ngành marketing?"

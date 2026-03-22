@@ -72,7 +72,7 @@ def evaluate_rag_context(
             system_prompt=sys_prompt,
             user_content=user_content,
             config_section=config,
-            model_group="light",
+            node_key="context_evaluator",
         )
 
         # ── Parse kết quả ──

@@ -1,25 +1,11 @@
 # ============================================================
 # FORM AGENT CONFIG — Kho layout mẫu đơn & định nghĩa fields
 # File: app/core/config/yaml/form_config.yaml
+#
+# ⚠️ Model config (extractor, drafter, provider) → models_config.yaml section "form:"
+# ⚠️ Prompt config (system_prompt, user_prompt) → prompts_config.yaml
+# ⚠️ File này CHỈ còn: fields (định nghĩa trường) + forms (danh mục mẫu đơn)
 # ============================================================
-
-# ----------------------------------------------------------
-# CẤU HÌNH CHUNG CHO FORM AGENT
-# ----------------------------------------------------------
-settings:
-  # Model dùng để trích xuất thông tin từ chat history
-  extractor_model: "qwen/qwen3-30b-a3b"
-  extractor_temperature: 0.1        # Rất thấp vì cần chính xác
-  extractor_max_tokens: 500
-  extractor_timeout: 10
-
-  # Model dùng để soạn văn bản form chuyên nghiệp
-  drafter_model: "qwen/qwen3-30b-a3b"
-  drafter_temperature: 0.4          # Cao hơn để văn phong đa dạng
-  drafter_max_tokens: 2000
-  drafter_timeout: 15
-
-  provider: "openrouter"
 
 # ----------------------------------------------------------
 # DANH MỤC CÁC TRƯỜNG THÔNG TIN (FIELDS)

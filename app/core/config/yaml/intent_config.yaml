@@ -1,38 +1,32 @@
 # ============================================================
-# INTENT CLASSIFICATION CONFIG (Non-sensitive settings)
-# File này CHỈ chứa config PHÂN LOẠI Ý ĐỊNH (Layer 3)
-# KHÔNG chứa API key - an toàn để commit lên Git
+# INTENT CLASSIFICATION CONFIG — Chỉ chứa Logic Routing (phi-Model)
+# File: app/core/config/yaml/intent_config.yaml
+#
+# ⚠️ Model configs (vector_router, semantic_router) → models_config.yaml
+# ⚠️ System prompts → prompts_config.yaml
+# ⚠️ Fallback messages → prompts_config.yaml
+# ⚠️ File này CHỈ còn: allowed_intents, intent_validator, enabled flags
 # ============================================================
 
 # ----------------------------------------------------------
-# LỚP 3.1: Vector Intent Router (Fast Semantic Search)
-# So khớp siêu tốc bằng Embedding - BAAI/bge-m3 Multilingual
+# LỚP 3.1: Vector Intent Router — enabled flag
+# (Model config → models_config.yaml section vector_router)
 # ----------------------------------------------------------
 vector_router:
   enabled: true
-  provider: "openrouter"
-  model: "baai/bge-m3"                           # Multilingual Embedding, hỗ trợ tiếng Việt vượt trội
-  dimensions: 1024                              # BGE-M3 tối ưu ở 1024 chiều, nhẹ hơn 33% so với 1536d
-  similarity_threshold: 0.82                    # BGE-M3 phân phối Cosine rộng hơn OpenAI → ngưỡng 0.82
 
 # ----------------------------------------------------------
 # LỚP 3 - Validator: Chống LLM sai chính tả Intent
-# Nếu LLM trả intent không khớp allowed_intents → fallback
 # ----------------------------------------------------------
 intent_validator:
   enabled: true
-  fallback_intent: "KHONG_XAC_DINH"             # Intent mặc định khi LLM trả tên không khớp
+  fallback_intent: "KHONG_XAC_DINH"
 
 # ----------------------------------------------------------
-# LỚP 3.2: LLM Semantic Router (Deep Intent Classification)
-# Nếu Vector Router score < threshold → gọi LLM "chữa cháy"
+# LỚP 3.2: Semantic Router — Danh sách Intent hợp lệ
+# (Model config → models_config.yaml section semantic_router)
 # ----------------------------------------------------------
 semantic_router:
-  provider: "openrouter"
-  model: "google/gemini-3.1-flash-lite-preview"
-  temperature: 0.0                              # Bắt buộc 0.0 để kết quả JSON luôn cố định
-  response_format: "json_object"
-  
   allowed_intents:
     # --- NHÓM 1: THÔNG TIN CỐT LÕI (Bắt buộc gọi RAG) ---
     - "THONG_TIN_TUYEN_SINH"
@@ -40,10 +34,10 @@ semantic_router:
     - "HOC_PHI_HOC_BONG"
     - "THU_TUC_HANH_CHINH"
 
-    # --- NHÓM 1.5: YÊU CẦU MẪU ĐƠN (→ FormAgent, KHÔNG qua RAG/VectorDB) ---
+    # --- NHÓM 1.5: YÊU CẦU MẪU ĐƠN (→ FormAgent) ---
     - "TAO_MAU_DON"
 
-    # --- NHÓM 2: TRUYỀN THÔNG & THƯƠNG HIỆU (Gọi RAG kèm Prompt khen trường) ---
+    # --- NHÓM 2: TRUYỀN THÔNG & THƯƠNG HIỆU ---
     - "THANH_TICH_UFM"
     - "DOI_SONG_SINH_VIEN"
     - "SO_SANH_TRUONG"
@@ -53,7 +47,7 @@ semantic_router:
     - "HO_TRO_SINH_VIEN"
     - "KHIEU_NAI_GOP_Y"
 
-    # --- NHÓM 4: BẢO VỆ HỆ THỐNG (Lạc đề & Độc hại - KHÔNG gọi RAG, ngắt luồng ngay) ---
+    # --- NHÓM 4: BẢO VỆ HỆ THỐNG ---
     - "BOI_NHO_DOI_THU"
     - "DOI_HOI_CAM_KET"
     - "TAN_CONG_HE_THONG"
@@ -62,32 +56,3 @@ semantic_router:
     # --- NHÓM 5: GIAO TIẾP & NGOẠI LỆ ---
     - "CHAO_HOI"
     - "KHONG_XAC_DINH"
-
-  # system_prompt → Đã chuyển sang app/core/prompts/prompts.yaml (domain: intent_classification)
-
-  # Các tin nhắn trả về thẳng cho người dùng (Fallback) khi lọt vào Nhóm 4
-  fallbacks:
-    CAU_HOI_LAC_DE: >
-      Mình là Trợ lý AI Tuyển sinh của UFM, chuyên hỗ trợ thông tin về ngành học,
-      học phí, điều kiện xét tuyển và thủ tục nhập học. Câu hỏi này nằm ngoài
-      phạm vi mình có thể hỗ trợ, bạn thử hỏi về tuyển sinh nhé!
-    
-    BOI_NHO_DOI_THU: >
-      UFM luôn tôn trọng tất cả các cơ sở giáo dục. Mỗi trường đều có thế mạnh riêng,
-      mình không thể đưa ra những nhận xét so sánh mang tính hạ thấp.
-      Bạn muốn tìm hiểu thêm về điểm mạnh của UFM không? Mình rất vui được giới thiệu!
-    
-    DOI_HOI_CAM_KET: >
-      Cơ hội nghề nghiệp và thu nhập phụ thuộc rất lớn vào năng lực và sự nỗ lực của bạn.
-      Mình không thể đưa ra cam kết tuyệt đối, nhưng chương trình đào tạo UFM
-      luôn được cập nhật sát nhu cầu doanh nghiệp để tối ưu cơ hội việc làm cho bạn.
-      Bạn muốn tìm hiểu chương trình đào tạo cụ thể của ngành nào không?
-      
-    TAN_CONG_HE_THONG: >
-      Mình nhận thấy câu hỏi có dấu hiệu bất thường. Bạn vui lòng đặt lại câu hỏi
-      theo hướng tự nhiên về tuyển sinh nhé, mình sẽ hỗ trợ bạn ngay!
-
-  fallback_out_of_scope: >
-    Câu hỏi này nằm ngoài phạm vi tư vấn tuyển sinh của mình rồi.
-    Bạn thử hỏi về ngành học, học phí, hoặc điều kiện xét tuyển nhé,
-    mình sẽ hỗ trợ ngay!

@@ -4,16 +4,17 @@
 
 from pydantic import BaseModel, Field
 from typing import List, Dict, Literal
-from app.core.config import intent_yaml_data
+from app.core.config import intent_yaml_data, models_yaml_data, prompts_yaml_data
 
 
 # ============================================================
 # LỚP 3.1: Vector Intent Router (Fast Semantic Search)
 # ============================================================
-_vr = intent_yaml_data.get("vector_router", {})
+_vr = models_yaml_data.get("vector_router", {})
+_vr_cfg = intent_yaml_data.get("vector_router", {})
 
 class VectorRouterConfig(BaseModel):
-    enabled: bool = _vr.get("enabled", True)
+    enabled: bool = _vr_cfg.get("enabled", True)
     provider: str = _vr.get("provider", "openrouter")
     model: str = _vr.get("model", "baai/bge-m3")
     dimensions: int = _vr.get("dimensions", 1024)
@@ -37,7 +38,10 @@ class IntentValidatorConfig(BaseModel):
 # LỚP 3.2: LLM Semantic Router (Deep Intent Classification)
 # Source of Truth: intent_config.yaml
 # ============================================================
-_sr = intent_yaml_data.get("semantic_router", {})
+_sr = models_yaml_data.get("semantic_router", {})
+_sr_cfg = intent_yaml_data.get("semantic_router", {})
+_sr_fallbacks = prompts_yaml_data.get("intent_classification", {}).get("fallbacks", {})
+_block_fallbacks = prompts_yaml_data.get("fallback_messages", {})
 
 class SemanticRouterConfig(BaseModel):
     provider: str = _sr.get("provider", "openrouter")
@@ -46,14 +50,9 @@ class SemanticRouterConfig(BaseModel):
     response_format: Literal["json_object"] = _sr.get("response_format", "json_object")
     
     # System Prompt hướng dẫn LLM phân loại intent
-    system_prompt: str = _sr.get(
-        "system_prompt",
-        'Bạn là hệ thống Định tuyến Ý định cho chatbot tuyển sinh UFM. '
-        'Phân loại câu hỏi vào đúng 1 intent và tóm tắt. '
-        'Trả về JSON: {"intent": "TEN_INTENT", "summary": "tóm tắt"}'
-    )
+    system_prompt: str = "" # Note: Moved to prompts_config.yaml
     
-    allowed_intents: List[str] = _sr.get(
+    allowed_intents: List[str] = _sr_cfg.get(
         "allowed_intents",
         [
             # Nhóm 1: Thông tin cốt lõi
@@ -83,9 +82,9 @@ class SemanticRouterConfig(BaseModel):
     )
     
     # Fallback messages cho các intent nhóm 4 (trả về thẳng, không gọi RAG)
-    fallbacks: Dict[str, str] = _sr.get("fallbacks", {})
+    fallbacks: Dict[str, str] = _sr_fallbacks
     
-    fallback_out_of_scope: str = _sr.get(
-        "fallback_out_of_scope",
+    fallback_out_of_scope: str = _block_fallbacks.get(
+        "out_of_scope",
         "Câu hỏi nằm ngoài phạm vi hỗ trợ tuyển sinh UFM."
     )

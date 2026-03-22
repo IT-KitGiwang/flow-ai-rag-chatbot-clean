@@ -102,7 +102,7 @@ def multi_query_node(state: GraphState) -> GraphState:
             system_prompt=sys_prompt,
             user_content=user_content,
             config_section=config,
-            model_group="light",
+            node_key="multi_query",
         )
 
         variants = _parse_variants(raw_output)

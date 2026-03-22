@@ -58,11 +58,12 @@ def contextual_guard_node(state: GraphState) -> GraphState:
         loop = asyncio.get_event_loop()
         if loop.is_running():
             import concurrent.futures
+            
+            def _async_runner():
+                return asyncio.run(GuardianService.check_layer_2_concurrent(query))
+                
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(
-                    asyncio.run,
-                    GuardianService.check_layer_2_concurrent(query)
-                )
+                future = pool.submit(_async_runner)
                 is_valid, msg = future.result(timeout=15)
         else:
             is_valid, msg = True, ""

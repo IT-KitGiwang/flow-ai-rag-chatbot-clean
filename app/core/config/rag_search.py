@@ -1,12 +1,12 @@
 # app/core/config/rag_search.py
 # Cấu hình cho Proceed RAG Search Pipeline (Tách luồng PR và UFM Info)
-# Đọc từ: rag_search_config.yaml
+# Đọc từ: models_config.yaml (các section: pr_query, ufm_query, web_search, ...)
 
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from app.core.config import _load_yaml
+from app.core.config import models_yaml_data
 
-_rs_data = _load_yaml("rag_search_config.yaml")
+_rs_data = models_yaml_data
 
 # ============================================================
 # PR QUERY GENERATION (Dành cho PR Search)
@@ -20,10 +20,7 @@ class PRQueryConfig(BaseModel):
     temperature: float = _pq.get("temperature", 0.4)
     max_tokens: int = _pq.get("max_tokens", 150)
     timeout_seconds: int = _pq.get("timeout_seconds", 6)
-    system_prompt: str = _pq.get(
-        "system_prompt",
-        "Sinh 1 câu truy vấn tìm thành tựu UFM liên quan đến chủ đề câu hỏi."
-    )
+    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
 # ============================================================
 # UFM DOMAIN MULTI-QUERY (Dành cho Info Search)
@@ -37,10 +34,7 @@ class UFMQueryConfig(BaseModel):
     temperature: float = _uq.get("temperature", 0.2)
     max_tokens: int = _uq.get("max_tokens", 150)
     timeout_seconds: int = _uq.get("timeout_seconds", 6)
-    system_prompt: str = _uq.get(
-        "system_prompt",
-        "Sinh 2 câu truy vấn tìm kiếm trên các cổng thông tin UFM."
-    )
+    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
 # ============================================================
 # WEB SEARCH AGENT
@@ -60,10 +54,7 @@ class WebSearchConfig(BaseModel):
     pr_domains: List[str] = _ws.get("pr_domains", [
         "thanhnien.vn", "vnexpress.net"
     ])
-    system_prompt: str = _ws.get(
-        "system_prompt",
-        "Tìm kiếm thông tin theo domain được chỉ định."
-    )
+    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
 # ============================================================
 # SYNTHESIZER 1: INFO SYNTHESIZER (User-Centric)
@@ -76,10 +67,7 @@ class InfoSynthesizerConfig(BaseModel):
     temperature: float = _syn_info.get("temperature", 0.1)
     max_tokens: int = _syn_info.get("max_tokens", 1500)
     timeout_seconds: int = _syn_info.get("timeout_seconds", 20)
-    system_prompt: str = _syn_info.get(
-        "system_prompt",
-        "Tư vấn tuyển sinh trung lập, trực diện, nghiêm cấm PR."
-    )
+    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
 # ============================================================
 # SYNTHESIZER 2: PR SYNTHESIZER
@@ -92,10 +80,7 @@ class PRSynthesizerConfig(BaseModel):
     temperature: float = _syn_pr.get("temperature", 0.3)
     max_tokens: int = _syn_pr.get("max_tokens", 1500)
     timeout_seconds: int = _syn_pr.get("timeout_seconds", 20)
-    system_prompt: str = _syn_pr.get(
-        "system_prompt",
-        "Tư vấn tuyển sinh lồng ghép PR, nhưng không chê bôi đối thủ."
-    )
+    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
 # ============================================================
 # SANITIZER + VERIFIER
@@ -109,10 +94,7 @@ class SanitizerConfig(BaseModel):
     max_tokens: int = _san.get("max_tokens", 800)
     timeout_seconds: int = _san.get("timeout_seconds", 15)
     max_loops: int = _san.get("max_loops", 2)
-    system_prompt: str = _san.get(
-        "system_prompt",
-        "Kiểm tra draft câu trả lời: trích dẫn, hallucination, tone PR lố."
-    )
+    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
 
 # ============================================================

@@ -1,16 +1,12 @@
 # ============================================================
-# CARE CONFIG — Chăm sóc sinh viên (Qwen LLM + Thông tin liên hệ)
+# CARE CONFIG — Chỉ chứa Thông Tin Liên Hệ (phi-Model)
 # File: app/core/config/yaml/care_config.yaml
-# Admin chỉ cần sửa file YAML này để cập nhật hotline/email
+#
+# ⚠️ Model config (care.provider, model, temperature) → models_config.yaml
+# ⚠️ File này CHỈ còn: contacts (hotline, email, địa chỉ)
 # ============================================================
 
 care:
-  # -- Cấu hình Model --
-  provider: openrouter
-  model: "qwen/qwen3.5-flash-02-23"
-  temperature: 0.4                    # Đủ ấm để đồng cảm, không quá sáng tạo
-  max_tokens: 500                     # Giữ ngắn gọn, tiết kiệm chi phí
-
   # -- Thông tin liên hệ theo Intent (truyền vào System Prompt) --
   contacts:
     ho_tro_sinh_vien:

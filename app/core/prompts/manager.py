@@ -29,8 +29,13 @@ class PromptManager:
 
     def __init__(self, yaml_path: str = None):
         if yaml_path is None:
-            # Tự định vị file prompts.yaml cùng thư mục với manager.py
-            yaml_path = str(Path(__file__).parent / "prompts.yaml")
+            # Ưu tiên file hợp nhất mới: config/yaml/prompts_config.yaml
+            _new_path = Path(__file__).parent.parent / "config" / "yaml" / "prompts_config.yaml"
+            if _new_path.exists():
+                yaml_path = str(_new_path)
+            else:
+                # Backward compatible: dùng file cũ prompts.yaml
+                yaml_path = str(Path(__file__).parent / "prompts.yaml")
 
         if not os.path.exists(yaml_path):
             raise FileNotFoundError(
@@ -57,10 +62,10 @@ class PromptManager:
                         prompts["user_prompt"]
                     )
                 except Exception as e:
-                    print(f"[PromptManager] ⚠️ Lỗi compile template '{domain}': {e}")
+                    print(f"[PromptManager] WARN Lo compile template '{domain}': {e}")
 
         print(
-            f"[PromptManager] ✅ Nạp {len(self._raw)} domain, "
+            f"[PromptManager] OK Nap {len(self._raw)} domain, "
             f"compile {len(self._compiled)} user_prompt templates"
         )
 
@@ -106,7 +111,7 @@ class PromptManager:
         try:
             return template.render(**kwargs).strip()
         except Exception as e:
-            print(f"[PromptManager] ⚠️ Lỗi render '{domain}': {e}")
+            print(f"[PromptManager] WARN Loi render '{domain}': {e}")
             # Fallback: trả raw template không render
             raw = self._raw.get(domain, {}).get("user_prompt", "")
             return str(raw).strip()

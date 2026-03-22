@@ -142,7 +142,7 @@ def response_node(state: GraphState) -> GraphState:
             system_prompt=sys_prompt,
             user_content=user_content,
             config_section=config,
-            model_group="main",
+            node_key="main_bot",
         )
 
         elapsed = time.time() - start_time
