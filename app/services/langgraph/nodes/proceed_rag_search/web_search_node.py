@@ -23,6 +23,7 @@ import re
 import time
 import urllib.request
 import urllib.error
+from datetime import datetime
 from app.services.langgraph.state import GraphState
 from app.core.config import query_flow_config
 from app.services.langgraph.nodes.context_node import _call_gemini_api_with_fallback
@@ -96,13 +97,33 @@ def _select_ufm_domains(query: str, max_domains: int = 3) -> list:
     return list(matched)[:max_domains]
 
 
+
+def _has_year(text: str) -> bool:
+    """Kiểm tra câu query đã chứa năm (2020-2030) chưa."""
+    return bool(re.search(r'20[2-3]\d', text))
+
+
+def _inject_year_anchor(query: str) -> str:
+    """
+    Bơm 'neo thời gian' vào query nếu người dùng không đề cập năm.
+    Mặc định: năm hiện tại và năm trước (để bắt cả thông báo cuối năm cũ).
+    Ví dụ: 'học phí Marketing' → 'học phí Marketing năm 2025 2026'
+    """
+    if _has_year(query):
+        return query
+    
+    current_year = datetime.now().year
+    prev_year = current_year - 1
+    return f"{query} năm {prev_year} {current_year}"
+
+
 def _build_search_query(
     standalone_query: str, 
     action: str, 
     ufm_queries: list, 
     pr_query: str
 ) -> str:
-    """Xây dựng prompt search cực ngắn gọn + domain giới hạn."""
+    """Xây dựng prompt search cực ngắn gọn + domain giới hạn + neo thời gian."""
     
     if action == "PROCEED_RAG_UFM_SEARCH":
         domains = _select_ufm_domains(standalone_query)
@@ -113,12 +134,16 @@ def _build_search_query(
         if ufm_queries:
             search_terms = " | ".join(ufm_queries[:2])
         
+        # Bơm năm hiện tại nếu chưa có
+        search_terms = _inject_year_anchor(search_terms)
+        
         return f"{search_terms} ({domain_filter})"
 
     else:  # PROCEED_RAG_PR_SEARCH
         domain_filter = " OR ".join(f"site:{d}" for d in _PR_TOP_DOMAINS)
         
         search_terms = pr_query or standalone_query
+        search_terms = _inject_year_anchor(search_terms)
         return f"UFM {search_terms} ({domain_filter})"
 
 

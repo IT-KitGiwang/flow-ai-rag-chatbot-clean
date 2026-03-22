@@ -327,6 +327,12 @@ web_search_node:
        không kèm link kiểm chứng được → KHÔNG ĐƯỢC đưa ra, dù đúng hay sai.
     7. Trả về ngắn gọn, đúng trọng tâm câu hỏi.
 
+    QUY TẮC VỀ TÍNH CẬP NHẬT (QUAN TRỌNG):
+    8. LUÔN ưu tiên thông tin MỚI NHẤT (năm 2025-2026). Bỏ qua dữ liệu cũ hơn 2 năm.
+    9. Nếu tìm thấy cả thông tin cũ lẫn mới, CHỈ lấy thông tin mới nhất.
+    10. Nếu KHÔNG tìm thấy thông tin năm gần nhất, PHẢI ghi rõ:
+        "Mình chưa được cung cấp thông tin cập nhật năm [năm]. Thông tin gần nhất tìm được là năm [X]."
+
     VÍ DỤ OUTPUT CHUẨN (mỗi số liệu kèm link riêng, dù cùng nguồn):
     - Điểm chuẩn ngành Marketing UFM năm 2025 là 24.5 điểm [Thông báo điểm chuẩn 2025](https://tuyensinh.ufm.edu.vn/diem-chuan-2025)
     - Chỉ tiêu ngành Marketing: 500 [Thông báo điểm chuẩn 2025](https://tuyensinh.ufm.edu.vn/diem-chuan-2025)
