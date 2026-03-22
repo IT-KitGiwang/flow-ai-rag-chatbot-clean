@@ -26,6 +26,9 @@ import time
 import asyncio
 from app.services.langgraph.state import GraphState
 from app.utils.guardian_utils import GuardianService
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def contextual_guard_node(state: GraphState) -> GraphState:
@@ -53,8 +56,11 @@ def contextual_guard_node(state: GraphState) -> GraphState:
         is_valid, msg = asyncio.run(
             GuardianService.check_layer_2_concurrent(query)
         )
-    except RuntimeError:
+    except RuntimeError as e:
         # Nếu đang chạy trong event loop có sẵn (FastAPI)
+        logger.warning(
+            "Contextual Guard - asyncio.run() RuntimeError: %s → fallback ThreadPoolExecutor", e
+        )
         loop = asyncio.get_event_loop()
         if loop.is_running():
             import concurrent.futures
@@ -62,10 +68,19 @@ def contextual_guard_node(state: GraphState) -> GraphState:
             def _async_runner():
                 return asyncio.run(GuardianService.check_layer_2_concurrent(query))
                 
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(_async_runner)
-                is_valid, msg = future.result(timeout=15)
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(_async_runner)
+                    is_valid, msg = future.result(timeout=15)
+                logger.info("Contextual Guard - ThreadPoolExecutor fallback OK")
+            except Exception as thread_err:
+                logger.error(
+                    "Contextual Guard - ThreadPoolExecutor fallback FAILED: %s → cho qua (SAFE)",
+                    thread_err, exc_info=True
+                )
+                is_valid, msg = True, ""
         else:
+            logger.error("Contextual Guard - Event loop NOT running nhưng RuntimeError → cho qua (SAFE)")
             is_valid, msg = True, ""
 
     elapsed = time.time() - start_time

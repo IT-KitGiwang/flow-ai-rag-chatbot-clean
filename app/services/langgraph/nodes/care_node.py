@@ -102,8 +102,14 @@ def care_node(state: GraphState) -> GraphState:
       - state["next_node"]: "response"
     """
     intent = state.get("intent", "")
+    intent_action = state.get("intent_action", "")
     user_query = state.get("standalone_query", state.get("user_query", ""))
     start_time = time.time()
+
+    # ── Guard: Chỉ chạy khi intent đúng là PROCEED_CARE ──
+    if intent_action != "PROCEED_CARE":
+        logger.info("Care Node - SKIP (intent_action='%s' != 'PROCEED_CARE')", intent_action)
+        return state
 
     # Lấy thông tin liên hệ theo intent (từ care_config.yaml)
     contact = _care_config.get_contact(intent)

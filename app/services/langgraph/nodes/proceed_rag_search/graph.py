@@ -59,6 +59,11 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
     standalone_query = state.get("standalone_query", state.get("user_query", ""))
     rag_context = state.get("rag_context") or ""
 
+    # ── Guard: Chỉ chạy khi intent thuộc nhánh PROCEED_RAG_* ──
+    if not action.startswith("PROCEED_RAG_"):
+        logger.info("RAG Search Pipeline - SKIP (intent_action='%s')", action)
+        return state
+
     logger.info("PROCEED RAG SEARCH v2 - Nhanh: %s, RAG context: %d ky tu", action, len(rag_context))
 
     # ── Khởi tạo state ──

@@ -34,6 +34,12 @@ def form_node(state: GraphState) -> GraphState:
     start_time = time.time()
     logger.info("========== BAT DAU FORM NODE ==========")
 
+    # ── Guard: Chỉ chạy khi intent đúng là PROCEED_FORM ──
+    intent_action = state.get("intent_action", "")
+    if intent_action != "PROCEED_FORM":
+        logger.info("Form Node - SKIP (intent_action='%s' != 'PROCEED_FORM')", intent_action)
+        return state
+
     query = state.get("standalone_query", state.get("user_query", ""))
     chat_history = state.get("chat_history", [])
 
