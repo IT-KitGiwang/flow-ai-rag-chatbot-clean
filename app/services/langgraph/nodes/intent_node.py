@@ -150,9 +150,3 @@ def intent_node(state: GraphState) -> GraphState:
         "response_source": state.get("response_source", ""),
     }
 
-
-def intent_router(state: GraphState) -> str:
-    """
-    Conditional Edge: intent → rag / form / pr / care / response
-    """
-    return state.get("next_node", "response")

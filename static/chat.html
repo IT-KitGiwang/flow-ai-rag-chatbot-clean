@@ -3,345 +3,258 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UFM Tư Vấn Tuyển Sinh — Demo Chat</title>
-  <meta name="description" content="Demo chatbot tư vấn tuyển sinh Đại học Tài chính - Marketing (UFM)">
+  <title>UFM Tư Vấn Tuyển Sinh — Chat</title>
+  <meta name="description" content="Chatbot tư vấn tuyển sinh Đại học Tài chính - Marketing (UFM)">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    /* ═══════════════════════════════════════════════════════
+       TOKENS
+    ═══════════════════════════════════════════════════════ */
     :root {
-      --bg: #0b0d14;
-      --surface: #12151f;
-      --surface-2: #1a1e2e;
-      --surface-3: #222840;
-      --border: #262d44;
-      --primary: #6c5ce7;
-      --primary-glow: rgba(108,92,231,.25);
-      --accent: #00cec9;
-      --accent-glow: rgba(0,206,201,.2);
-      --danger: #ff6b6b;
-      --success: #51cf66;
-      --warn: #fcc419;
-      --text: #e8ecf4;
-      --text-dim: #7b8399;
+      --bg:         #0b0d14;
+      --surface:    #12151f;
+      --surface-2:  #1a1e2e;
+      --surface-3:  #222840;
+      --border:     #262d44;
+      --primary:    #6c5ce7;
+      --primary-glow: rgba(108,92,231,.22);
+      --accent:     #00cec9;
+      --accent-glow: rgba(0,206,201,.15);
+      --danger:     #ff6b6b;
+      --success:    #51cf66;
+      --text:       #e8ecf4;
+      --text-dim:   #7b8399;
       --text-muted: #4a5270;
-      --user-bg: linear-gradient(135deg, #6c5ce7 0%, #a855f7 100%);
-      --bot-bg: #181c2e;
-      --radius: 16px;
-      --radius-sm: 10px;
+      --user-bg:    linear-gradient(135deg,#6c5ce7 0%,#a855f7 100%);
+      --bot-bg:     #181c2e;
+      --radius:     16px;
+      --radius-sm:  10px;
     }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { height: 100%; overflow: hidden; }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; overflow:hidden; }
     body {
-      font-family: 'Inter', -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      display: flex; flex-direction: column;
+      font-family:'Inter',-apple-system,sans-serif;
+      background:var(--bg); color:var(--text);
+      display:flex; flex-direction:column;
     }
 
-    /* ── HEADER ── */
-    .chat-header {
-      background: linear-gradient(135deg, var(--surface) 0%, #1e1340 100%);
-      border-bottom: 1px solid var(--border);
-      padding: 16px 24px;
-      display: flex; align-items: center; gap: 14px;
-      flex-shrink: 0;
-      z-index: 10;
+    /* ═══════════════════════════════════════════════════════
+       HEADER
+    ═══════════════════════════════════════════════════════ */
+    .header {
+      background:linear-gradient(135deg,var(--surface) 0%,#1e1340 100%);
+      border-bottom:1px solid var(--border);
+      padding:14px 20px; display:flex; align-items:center; gap:12px;
+      flex-shrink:0; z-index:10;
     }
-    .chat-header .avatar {
-      width: 44px; height: 44px; border-radius: 50%;
-      background: var(--user-bg);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px; flex-shrink: 0;
-      box-shadow: 0 0 20px var(--primary-glow);
+    .header .avatar {
+      width:42px; height:42px; border-radius:50%;
+      background:var(--user-bg);
+      display:flex; align-items:center; justify-content:center;
+      font-size:20px; flex-shrink:0;
+      box-shadow:0 0 18px var(--primary-glow);
     }
-    .chat-header .info h1 {
-      font-size: 16px; font-weight: 700;
-      background: linear-gradient(90deg, #e8ecf4, #a78bfa);
-      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    .header .info h1 {
+      font-size:15px; font-weight:700;
+      background:linear-gradient(90deg,#e8ecf4,#a78bfa);
+      -webkit-background-clip:text; background-clip:text;
+      -webkit-text-fill-color:transparent;
     }
-    .chat-header .info p {
-      font-size: 11px; color: var(--text-dim); margin-top: 2px;
-    }
-    .chat-header .status-dot {
-      width: 8px; height: 8px; border-radius: 50%; background: var(--success);
-      animation: pulse 2s infinite;
-    }
+    .header .info p { font-size:11px; color:var(--text-dim); margin-top:1px; display:flex; align-items:center; gap:5px; }
+    .header .dot { width:7px;height:7px;border-radius:50%;background:var(--success);animation:pulse 2s infinite; }
     @keyframes pulse {
-      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(81,207,102,.5); }
-      50% { opacity: .7; box-shadow: 0 0 0 6px rgba(81,207,102,0); }
+      0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(81,207,102,.5)}
+      50%{opacity:.7;box-shadow:0 0 0 6px rgba(81,207,102,0)}
     }
-
-    /* ── MESSAGES AREA ── */
-    .chat-messages {
-      flex: 1; overflow-y: auto; padding: 24px 16px;
-      display: flex; flex-direction: column; gap: 6px;
-      scroll-behavior: smooth;
+    .header .spacer { flex:1; }
+    .btn-new {
+      padding:5px 12px; border:1px solid var(--border); border-radius:var(--radius-sm);
+      background:transparent; color:var(--text-dim); font-size:11px;
+      font-family:inherit; cursor:pointer; transition:all .2s;
     }
-    .chat-messages::-webkit-scrollbar { width: 5px; }
-    .chat-messages::-webkit-scrollbar-track { background: transparent; }
-    .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .btn-new:hover { border-color:var(--primary); color:var(--text); background:var(--primary-glow); }
 
-    /* ── MESSAGE BUBBLE ── */
-    .msg { display: flex; gap: 10px; max-width: 85%; animation: msgIn .3s ease; }
-    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-    .msg.bot { align-self: flex-start; }
-
-    @keyframes msgIn {
-      from { opacity: 0; transform: translateY(12px); }
-      to { opacity: 1; transform: none; }
+    /* ═══════════════════════════════════════════════════════
+       MESSAGES AREA
+    ═══════════════════════════════════════════════════════ */
+    .messages {
+      flex:1; overflow-y:auto; padding:20px 14px;
+      display:flex; flex-direction:column; gap:6px;
+      scroll-behavior:smooth;
     }
+    .messages::-webkit-scrollbar { width:5px; }
+    .messages::-webkit-scrollbar-track { background:transparent; }
+    .messages::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+
+    /* ── Bubble ── */
+    .msg { display:flex; gap:10px; max-width:82%; animation:msgIn .3s ease; }
+    .msg.user { align-self:flex-end; flex-direction:row-reverse; }
+    .msg.bot  { align-self:flex-start; }
+    @keyframes msgIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 
     .msg .bubble {
-      padding: 14px 18px;
-      border-radius: var(--radius);
-      font-size: 14px; line-height: 1.65;
-      word-break: break-word;
-      position: relative;
+      padding:13px 17px; border-radius:var(--radius);
+      font-size:14px; line-height:1.7; word-break:break-word; position:relative;
     }
     .msg.user .bubble {
-      background: var(--user-bg);
-      color: #fff;
-      border-bottom-right-radius: 4px;
-      box-shadow: 0 4px 20px var(--primary-glow);
+      background:var(--user-bg); color:#fff;
+      border-bottom-right-radius:4px;
     }
     .msg.bot .bubble {
-      background: var(--bot-bg);
-      border: 1px solid var(--border);
-      border-bottom-left-radius: 4px;
+      background:var(--bot-bg); border:1px solid var(--border);
+      border-bottom-left-radius:4px;
     }
-    .msg .bot-avatar {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: linear-gradient(135deg, #1a1e2e, #2d1b69);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; flex-shrink: 0;
-      border: 1px solid var(--border);
+    .msg .bot-icon {
+      width:30px;height:30px;border-radius:50%;
+      background:var(--surface-3);display:flex;align-items:center;justify-content:center;
+      font-size:16px;flex-shrink:0;margin-top:2px;
     }
 
-    /* ── METADATA CHIP ── */
-    .msg-meta {
-      display: flex; gap: 8px; flex-wrap: wrap;
-      margin-top: 10px; padding-top: 8px;
-      border-top: 1px solid rgba(255,255,255,.06);
-    }
+    /* ── Metadata chips ── */
+    .meta { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
     .chip {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 9px; border-radius: 6px;
-      font-size: 10px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: .3px;
+      font-size:10px; padding:2px 8px; border-radius:12px;
+      background:var(--surface-2); border:1px solid var(--border);
+      color:var(--text-dim);
     }
-    .chip.intent { background: rgba(108,92,231,.15); color: #a78bfa; }
-    .chip.source { background: rgba(0,206,201,.12); color: var(--accent); }
-    .chip.time { background: rgba(255,255,255,.05); color: var(--text-dim); }
-    .chip.blocked { background: rgba(255,107,107,.15); color: var(--danger); }
+    .chip.blocked { background:rgba(255,107,107,.15); border-color:var(--danger); color:var(--danger); }
 
-    /* ── MARKDOWN IN BOT RESPONSE ── */
-    .bubble h1, .bubble h2, .bubble h3 {
-      font-weight: 700; margin: 12px 0 6px;
-    }
-    .bubble h1 { font-size: 16px; }
-    .bubble h2 { font-size: 15px; }
-    .bubble h3 { font-size: 14px; color: var(--accent); }
-
-    .bubble strong, .bubble b { color: #c4b5fd; font-weight: 600; }
-    .bubble em, .bubble i { color: var(--accent); font-style: italic; }
-
-    .bubble ul, .bubble ol {
-      margin: 8px 0; padding-left: 22px;
-    }
-    .bubble li { margin-bottom: 4px; }
-    .bubble li::marker { color: var(--primary); }
-
-    .bubble a {
-      color: var(--accent); text-decoration: none;
-      border-bottom: 1px dotted rgba(0,206,201,.4);
-      transition: all .2s;
-    }
-    .bubble a:hover { color: #38d9a9; border-bottom-color: #38d9a9; }
-
-    .bubble code {
-      background: rgba(108,92,231,.15); color: #c4b5fd;
-      padding: 2px 6px; border-radius: 4px;
-      font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    /* ── Markdown inside bubble ── */
+    .bubble h1,.bubble h2,.bubble h3 { margin:10px 0 6px; font-weight:700; color:var(--text); }
+    .bubble h1 { font-size:17px; }
+    .bubble h2 { font-size:15px; }
+    .bubble h3 { font-size:14px; }
+    .bubble strong { color:#c4b5fd; }
+    .bubble em { font-style:italic; color:var(--text-dim); }
+    .bubble a { color:var(--accent); text-decoration:none; }
+    .bubble a:hover { text-decoration:underline; }
+    .bubble ul, .bubble ol { margin:6px 0 6px 20px; }
+    .bubble li { margin-bottom:3px; }
+    .bubble blockquote {
+      border-left:3px solid var(--primary); padding:4px 12px;
+      margin:6px 0; color:var(--text-dim); background:var(--surface);
+      border-radius:0 var(--radius-sm) var(--radius-sm) 0;
     }
     .bubble pre {
-      background: #0f111a; border: 1px solid var(--border);
-      border-radius: 8px; padding: 12px 16px;
-      overflow-x: auto; margin: 10px 0;
+      background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius-sm); padding:10px 14px;
+      overflow-x:auto; margin:8px 0; font-size:12px;
     }
-    .bubble pre code {
-      background: none; padding: 0; font-size: 12px; color: var(--text);
+    .bubble code { font-family:'Cascadia Code','Fira Code',monospace; font-size:12px; }
+    .bubble :not(pre)>code {
+      background:var(--surface-2); padding:1px 5px; border-radius:4px; color:#c4b5fd;
     }
-    .bubble blockquote {
-      border-left: 3px solid var(--primary);
-      padding: 8px 14px; margin: 10px 0;
-      background: rgba(108,92,231,.06);
-      border-radius: 0 8px 8px 0;
-      color: var(--text-dim); font-style: italic;
-    }
-    .bubble hr {
-      border: none; border-top: 1px solid var(--border);
-      margin: 12px 0;
-    }
-    .bubble table {
-      width: 100%; border-collapse: collapse; margin: 10px 0;
-      font-size: 13px;
-    }
-    .bubble th, .bubble td {
-      padding: 8px 12px; border: 1px solid var(--border); text-align: left;
-    }
-    .bubble th { background: var(--surface-3); font-weight: 600; color: var(--accent); }
-    .bubble tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+    .bubble table { border-collapse:collapse; margin:8px 0; width:100%; font-size:13px; }
+    .bubble th, .bubble td { border:1px solid var(--border); padding:6px 10px; text-align:left; }
+    .bubble th { background:var(--surface-2); font-weight:600; }
+    .bubble hr { border:none; border-top:1px solid var(--border); margin:10px 0; }
 
-    /* ── TYPING INDICATOR ── */
-    .typing { display: flex; gap: 10px; align-self: flex-start; animation: msgIn .3s ease; }
-    .typing .bot-avatar { width: 32px; height: 32px; border-radius: 50%;
-      background: linear-gradient(135deg, #1a1e2e, #2d1b69);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; border: 1px solid var(--border); flex-shrink: 0; }
-    .typing .dots {
-      display: flex; align-items: center; gap: 5px;
-      padding: 14px 20px; background: var(--bot-bg);
-      border: 1px solid var(--border); border-radius: var(--radius);
-      border-bottom-left-radius: 4px;
+    /* ── Stream progress ── */
+    .stream-box { display:flex; align-items:flex-start; gap:10px; align-self:flex-start; max-width:82%; animation:msgIn .3s ease; }
+    .stream-box .bubble { background:var(--bot-bg); border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px; min-width:180px; }
+    .sp-title { font-size:11px; color:var(--text-dim); margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+    .sp-spinner { width:12px;height:12px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .sp-steps { display:flex; flex-wrap:wrap; gap:5px; }
+    .sp-step {
+      font-size:11px; padding:3px 9px;
+      background:var(--surface-2); border:1px solid var(--border);
+      border-radius:16px; color:var(--text-dim); animation:stepPop .2s ease;
     }
-    .typing .dot {
-      width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim);
-      animation: bounce 1.4s infinite;
-    }
-    .typing .dot:nth-child(2) { animation-delay: .2s; }
-    .typing .dot:nth-child(3) { animation-delay: .4s; }
-    @keyframes bounce {
-      0%, 60%, 100% { transform: translateY(0); opacity: .4; }
-      30% { transform: translateY(-6px); opacity: 1; }
-    }
+    .sp-step.active { background:var(--primary-glow); border-color:var(--primary); color:var(--text); }
+    @keyframes stepPop { from{opacity:0;transform:scale(.85)} to{opacity:1;transform:none} }
 
-    /* ── INPUT AREA ── */
-    .chat-input-area {
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      padding: 16px 20px;
-      flex-shrink: 0;
-    }
-    .input-wrapper {
-      display: flex; align-items: flex-end; gap: 10px;
-      max-width: 900px; margin: 0 auto;
-    }
-    .input-wrapper textarea {
-      flex: 1; resize: none;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 12px 16px;
-      color: var(--text); font-family: inherit; font-size: 14px;
-      line-height: 1.5;
-      max-height: 120px; min-height: 44px;
-      transition: border-color .2s;
-      outline: none;
-    }
-    .input-wrapper textarea:focus { border-color: var(--primary); }
-    .input-wrapper textarea::placeholder { color: var(--text-muted); }
-    .char-count {
-      font-size: 10px; color: var(--text-muted); text-align: right;
-      margin-top: 4px;
-    }
-    .char-count.warn { color: var(--warn); }
-    .char-count.danger { color: var(--danger); }
-
-    .send-btn {
-      width: 44px; height: 44px; border: none; border-radius: 50%;
-      background: var(--user-bg);
-      color: #fff; font-size: 18px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all .2s; flex-shrink: 0;
-      box-shadow: 0 4px 16px var(--primary-glow);
-    }
-    .send-btn:hover { transform: scale(1.08); box-shadow: 0 6px 24px var(--primary-glow); }
-    .send-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
-    .send-btn .spinner {
-      width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3);
-      border-top-color: #fff; border-radius: 50%;
-      animation: spin .6s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── WELCOME ── */
+    /* ── Welcome ── */
     .welcome {
-      display: flex; flex-direction: column; align-items: center;
-      justify-content: center; flex: 1; text-align: center;
-      padding: 40px; animation: msgIn .5s ease;
+      margin:auto; text-align:center; padding:40px 20px;
+      animation:msgIn .5s ease;
     }
-    .welcome .logo { font-size: 56px; margin-bottom: 16px; }
-    .welcome h2 {
-      font-size: 22px; font-weight: 700;
-      background: linear-gradient(90deg, #e8ecf4, #a78bfa);
-      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    .welcome .logo { font-size:56px; margin-bottom:16px; }
+    .welcome h2 { font-size:18px; font-weight:700; margin-bottom:8px; }
+    .welcome p { font-size:13px; color:var(--text-dim); max-width:420px; margin:0 auto 20px; }
+    .suggestions { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; }
+    .sug {
+      padding:8px 14px; border-radius:20px;
+      border:1px solid var(--border); background:var(--surface-2);
+      color:var(--text); font-size:12px; cursor:pointer;
+      font-family:inherit; transition:all .2s;
     }
-    .welcome p { color: var(--text-dim); font-size: 13px; margin-top: 8px; max-width: 400px; }
-    .welcome .suggestions {
-      display: flex; flex-wrap: wrap; gap: 8px;
-      justify-content: center; margin-top: 24px;
-    }
-    .welcome .sug-btn {
-      background: var(--surface-2); border: 1px solid var(--border);
-      color: var(--text); padding: 10px 16px; border-radius: 20px;
-      font-size: 13px; cursor: pointer; font-family: inherit;
-      transition: all .2s;
-    }
-    .welcome .sug-btn:hover {
-      border-color: var(--primary); background: rgba(108,92,231,.1);
-      transform: translateY(-1px);
-    }
+    .sug:hover { border-color:var(--primary); background:var(--primary-glow); transform:translateY(-1px); }
 
-    /* ── RESPONSIVE ── */
-    @media (max-width: 640px) {
-      .msg { max-width: 92%; }
-      .chat-header { padding: 12px 16px; }
-      .chat-input-area { padding: 12px 14px; }
+    /* ═══════════════════════════════════════════════════════
+       INPUT AREA
+    ═══════════════════════════════════════════════════════ */
+    .input-area {
+      background:var(--surface); border-top:1px solid var(--border);
+      padding:14px 16px; flex-shrink:0;
+    }
+    .input-wrap {
+      display:flex; align-items:flex-end; gap:10px;
+      background:var(--surface-2); border:1px solid var(--border);
+      border-radius:var(--radius); padding:8px 12px;
+      transition:border-color .2s;
+    }
+    .input-wrap:focus-within { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-glow); }
+    .input-wrap textarea {
+      flex:1; background:transparent; border:none; outline:none;
+      color:var(--text); font-family:inherit; font-size:14px;
+      resize:none; max-height:110px; line-height:1.5;
+    }
+    .input-wrap textarea::placeholder { color:var(--text-muted); }
+    .send-btn {
+      width:36px; height:36px; border-radius:50%;
+      border:none; cursor:pointer;
+      background:var(--user-bg); color:#fff;
+      display:flex; align-items:center; justify-content:center;
+      flex-shrink:0; transition:transform .15s, opacity .2s;
+    }
+    .send-btn:hover { transform:scale(1.08); }
+    .send-btn:disabled { opacity:.4; cursor:default; transform:none; }
+    .send-btn .spinner { width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite; }
+
+    /* ── Responsive ── */
+    @media(max-width:640px){
+      .msg { max-width:92%; }
+      .header { padding:10px 14px; }
+      .input-area { padding:10px 12px; }
     }
   </style>
 </head>
 <body>
 
 <!-- ═══════════ HEADER ═══════════ -->
-<div class="chat-header">
+<div class="header">
   <div class="avatar">🎓</div>
   <div class="info">
     <h1>UFM Tư Vấn Tuyển Sinh</h1>
-    <p style="display:flex;align-items:center;gap:6px;">
-      <span class="status-dot"></span> Trợ lý AI đang sẵn sàng
-    </p>
+    <p><span class="dot"></span> Trợ lý AI đang sẵn sàng</p>
   </div>
+  <div class="spacer"></div>
+  <button class="btn-new" onclick="newSession()" title="Bắt đầu phiên mới">🔄 Phiên mới</button>
 </div>
 
 <!-- ═══════════ MESSAGES ═══════════ -->
-<div class="chat-messages" id="chatMessages">
+<div class="messages" id="messages">
   <div class="welcome" id="welcomeScreen">
     <div class="logo">🎓</div>
     <h2>Chào bạn! Mình là Trợ lý Tuyển sinh UFM</h2>
     <p>Mình có thể giúp bạn tìm hiểu về ngành học, học phí, điều kiện xét tuyển, và mọi thông tin về Đại học Tài chính - Marketing.</p>
     <div class="suggestions">
-      <button class="sug-btn" onclick="sendSuggestion(this)">📚 Học phí ngành Marketing?</button>
-      <button class="sug-btn" onclick="sendSuggestion(this)">🎯 Điểm chuẩn 2026?</button>
-      <button class="sug-btn" onclick="sendSuggestion(this)">🏠 Có ký túc xá không?</button>
-      <button class="sug-btn" onclick="sendSuggestion(this)">📋 Thủ tục nhập học?</button>
+      <button class="sug" onclick="ask(this)">📚 Học phí ngành Marketing?</button>
+      <button class="sug" onclick="ask(this)">🎯 Điểm chuẩn 2026?</button>
+      <button class="sug" onclick="ask(this)">🏠 Có ký túc xá không?</button>
+      <button class="sug" onclick="ask(this)">📋 Thủ tục nhập học?</button>
     </div>
   </div>
 </div>
 
 <!-- ═══════════ INPUT ═══════════ -->
-<div class="chat-input-area">
-  <div class="input-wrapper">
-    <div style="flex:1;">
-      <textarea id="chatInput" rows="1"
-        placeholder="Nhập câu hỏi về tuyển sinh UFM..."
-        maxlength="3000"
-        oninput="autoResize(this); updateCharCount();"
-      ></textarea>
-      <div class="char-count" id="charCount"></div>
-    </div>
+<div class="input-area">
+  <div class="input-wrap">
+    <textarea id="chatInput" rows="1" placeholder="Nhập câu hỏi về tuyển sinh UFM..." maxlength="3000" oninput="autoGrow(this)"></textarea>
     <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Gửi">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <line x1="22" y1="2" x2="11" y2="13"></line>
         <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
       </svg>
@@ -350,281 +263,257 @@
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════
-// STATE
-// ═══════════════════════════════════════════════════════════
-const API_URL = '/api/v1/chat/message';
+/* ═══════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════ */
+const STREAM_URL  = '/api/v1/chat/stream';
+const SESSION_KEY = 'ufm_chat_session_id';
+const SESSION_ID  = (() => {
+  let id = localStorage.getItem(SESSION_KEY);
+  if (!id) { id = crypto.randomUUID?.() ?? ('ufm-'+Date.now()); localStorage.setItem(SESSION_KEY, id); }
+  return id;
+})();
 let chatHistory = [];
-let isLoading = false;
-const SESSION_ID = 'demo-' + Math.random().toString(36).substring(2, 10);
+let isLoading   = false;
 
-// ═══════════════════════════════════════════════════════════
-// MARKDOWN RENDERER (Regex-based, no external lib)
-// ═══════════════════════════════════════════════════════════
-function renderMarkdown(text) {
+/* ═══════════════════════════════════════════════════════════
+   MARKDOWN RENDERER — Regex-based (no lib)
+═══════════════════════════════════════════════════════════ */
+function md(text) {
   if (!text) return '';
+  let h = text;
 
-  let html = text;
+  // Escape HTML
+  h = h.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // ── Escape HTML entities (trước khi parse markdown) ──
-  html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Code blocks ```lang\n...\n```
+  h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre><code class="lang-${lang||'text'}">${code.trim()}</code></pre>`);
 
-  // ── Code blocks (``` ... ```) — phải parse trước để bảo vệ nội dung bên trong ──
-  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre><code class="lang-${lang}">${code.trim()}</code></pre>`;
-  });
+  // Inline code
+  h = h.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-  // ── Inline code (`...`) ──
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Headings
+  h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  h = h.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
+  h = h.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
 
-  // ── Headers (### → h3, ## → h2, # → h1) ──
-  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  // Bold + italic
+  h = h.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  h = h.replace(/\*\*(.+?)\*\*/g,     '<strong>$1</strong>');
+  h = h.replace(/__(.+?)__/g,         '<strong>$1</strong>');
+  h = h.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
 
-  // ── Bold + Italic (***text*** hoặc ___text___) ──
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  // Blockquote
+  h = h.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
 
-  // ── Bold (**text** hoặc __text__) ──
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  // HR
+  h = h.replace(/^(---|___|\*\*\*)$/gm, '<hr>');
 
-  // ── Italic (*text* hoặc _text_) — chú ý không khớp với ** ──
-  html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
-  html = html.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, '<em>$1</em>');
+  // Links [text](url)
+  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
-  // ── Blockquote (> text) ──
-  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-
-  // ── Horizontal rule (--- hoặc ***) ──
-  html = html.replace(/^(---|\*\*\*|___)$/gm, '<hr>');
-
-  // ── Links [text](url) ──
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-
-  // ── Tables ──
-  html = html.replace(/^(\|.+\|)\n(\|[\s\-:|]+\|)\n((?:\|.+\|\n?)+)/gm, (match, headerRow, sepRow, bodyRows) => {
-    const headers = headerRow.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
-    const rows = bodyRows.trim().split('\n').map(row => {
-      const cells = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
-      return `<tr>${cells}</tr>`;
+  // Tables
+  h = h.replace(/^(\|.+\|)\n(\|[\s\-:|]+\|)\n((?:\|.+\|\n?)+)/gm, (_, hdr, sep, body) => {
+    const ths = hdr.split('|').filter(c=>c.trim()).map(c=>`<th>${c.trim()}</th>`).join('');
+    const rows = body.trim().split('\n').map(r => {
+      const tds = r.split('|').filter(c=>c.trim()).map(c=>`<td>${c.trim()}</td>`).join('');
+      return `<tr>${tds}</tr>`;
     }).join('');
-    return `<table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
+    return `<table><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
   });
 
-  // ── Unordered lists (- item hoặc * item) ──
-  html = html.replace(/^(\s*)[*\-] (.+)$/gm, '<li>$2</li>');
-  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  // Unordered lists (- item or * item)
+  h = h.replace(/^[\-\*] (.+)$/gm, '⟬LI⟭$1⟬/LI⟭');
+  h = h.replace(/((?:⟬LI⟭.*?⟬\/LI⟭\n?)+)/g, m =>
+    '<ul>' + m.replace(/⟬LI⟭(.*?)⟬\/LI⟭/g, '<li>$1</li>') + '</ul>');
 
-  // ── Ordered lists (1. item) ──
-  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-  // Gộp liên tiếp <li> thành <ol> (khi chưa bọc)
-  html = html.replace(/(?<!<\/ul>)((?:<li>.*<\/li>\n?){2,})/g, (match) => {
-    // Chỉ bọc nếu chưa thuộc <ul>
-    if (match.includes('<ul>')) return match;
-    return `<ol>${match}</ol>`;
-  });
+  // Ordered lists (1. item)
+  h = h.replace(/^\d+\. (.+)$/gm, '⟬OLI⟭$1⟬/OLI⟭');
+  h = h.replace(/((?:⟬OLI⟭.*?⟬\/OLI⟭\n?)+)/g, m =>
+    '<ol>' + m.replace(/⟬OLI⟭(.*?)⟬\/OLI⟭/g, '<li>$1</li>') + '</ol>');
 
-  // ── Paragraphs (2 xuống dòng → <br><br>, 1 xuống dòng → <br>) ──
-  html = html.replace(/\n\n/g, '<br><br>');
-  html = html.replace(/\n/g, '<br>');
+  // Paragraphs / line breaks
+  h = h.replace(/\n\n/g, '<br><br>');
+  h = h.replace(/\n/g, '<br>');
 
-  // ── Clean up ──
-  html = html.replace(/<br><\/ul>/g, '</ul>');
-  html = html.replace(/<br><\/ol>/g, '</ol>');
-  html = html.replace(/<ul><br>/g, '<ul>');
-  html = html.replace(/<ol><br>/g, '<ol>');
-  html = html.replace(/<br>(<h[1-3]>)/g, '$1');
-  html = html.replace(/(<\/h[1-3]>)<br>/g, '$1');
-  html = html.replace(/<br>(<table>)/g, '$1');
-  html = html.replace(/(<\/table>)<br>/g, '$1');
-  html = html.replace(/<br>(<pre>)/g, '$1');
-  html = html.replace(/(<\/pre>)<br>/g, '$1');
-  html = html.replace(/<br>(<blockquote>)/g, '$1');
-  html = html.replace(/(<\/blockquote>)<br>/g, '$1');
-  html = html.replace(/<br>(<hr>)/g, '$1');
-  html = html.replace(/(<hr>)<br>/g, '$1');
+  // Cleanup
+  h = h.replace(/<br><\/ul>/g,'</ul>').replace(/<br><\/ol>/g,'</ol>');
+  h = h.replace(/<ul><br>/g,'<ul>').replace(/<ol><br>/g,'<ol>');
+  h = h.replace(/<br>(<h[1-3]>)/g,'$1').replace(/(<\/h[1-3]>)<br>/g,'$1');
+  h = h.replace(/<br>(<table>)/g,'$1').replace(/(<\/table>)<br>/g,'$1');
+  h = h.replace(/<br>(<pre>)/g,'$1').replace(/(<\/pre>)<br>/g,'$1');
+  h = h.replace(/<br>(<blockquote>)/g,'$1').replace(/(<\/blockquote>)<br>/g,'$1');
+  h = h.replace(/<br>(<hr>)/g,'$1').replace(/(<hr>)<br>/g,'$1');
 
-  return html;
+  return h;
 }
 
-// ═══════════════════════════════════════════════════════════
-// SEND MESSAGE
-// ═══════════════════════════════════════════════════════════
+function esc(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SEND MESSAGE — SSE Stream
+═══════════════════════════════════════════════════════════ */
 async function sendMessage() {
-  const input = document.getElementById('chatInput');
-  const query = input.value.trim();
+  const el = document.getElementById('chatInput');
+  const query = el.value.trim();
   if (!query || isLoading) return;
 
-  // Ẩn welcome nếu còn hiện
-  const welcome = document.getElementById('welcomeScreen');
-  if (welcome) welcome.remove();
+  // Hide welcome
+  const w = document.getElementById('welcomeScreen');
+  if (w) w.remove();
 
-  // Append user message
-  appendMessage('user', query);
-  chatHistory.push({ role: 'user', content: query });
+  // User bubble
+  appendUser(query);
+  chatHistory.push({role:'user', content:query});
+  el.value = ''; el.style.height = 'auto';
 
-  // Clear input
-  input.value = '';
-  input.style.height = 'auto';
-  updateCharCount();
-
-  // Show typing
+  // Loading state
   isLoading = true;
-  updateSendButton();
-  showTyping();
+  setBtnLoading(true);
+  const progress = showProgress();
+  const steps = [];
 
   try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: query,
-        chat_history: chatHistory.slice(-20),
-        session_id: SESSION_ID,
-      }),
+    const res = await fetch(STREAM_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ query, chat_history: chatHistory.slice(-20), session_id: SESSION_ID }),
     });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    hideTyping();
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', result = null;
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `Lỗi ${res.status}`);
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const parts = buf.split('\n\n');
+      buf = parts.pop();
+      for (const p of parts) {
+        if (!p.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(p.slice(6));
+          if (ev.type === 'node')   { steps.push(ev.label); updateProgress(progress, steps); }
+          else if (ev.type === 'result') result = ev;
+          else if (ev.type === 'error')  throw new Error(ev.message);
+        } catch(_){}
+      }
     }
 
-    const data = await res.json();
-
-    appendMessage('bot', data.response, {
-      intent: data.intent,
-      source: data.source,
-      elapsed: data.elapsed_seconds,
-      blocked: data.blocked,
-    });
-
-    chatHistory.push({ role: 'assistant', content: data.response });
-
-  } catch (e) {
-    hideTyping();
-    appendMessage('bot', `⚠️ Xin lỗi, đã có lỗi xảy ra: ${e.message}`, {
-      source: 'error',
-    });
+    progress.remove();
+    if (result) {
+      appendBot(result.response, {
+        intent: result.intent,
+        intent_action: result.intent_action,
+        source: result.source,
+        elapsed: result.elapsed_seconds,
+        blocked: result.blocked,
+        blocked_reason: result.blocked_reason,
+      });
+      chatHistory.push({role:'assistant', content:result.response});
+    } else {
+      appendBot('⚠️ Không nhận được phản hồi.', {source:'error'});
+    }
+  } catch(e) {
+    progress.remove();
+    appendBot(`⚠️ ${e.message}`, {source:'error'});
   } finally {
     isLoading = false;
-    updateSendButton();
+    setBtnLoading(false);
   }
 }
 
-function sendSuggestion(btn) {
-  const input = document.getElementById('chatInput');
-  // Lấy text thuần, bỏ emoji đầu
-  input.value = btn.textContent.replace(/^[\s\p{Emoji_Presentation}\p{Extended_Pictographic}]+/u, '').trim();
+function ask(btn) {
+  document.getElementById('chatInput').value =
+    btn.textContent.replace(/^[\s\p{Emoji_Presentation}\p{Extended_Pictographic}]+/u,'').trim();
   sendMessage();
 }
 
-// ═══════════════════════════════════════════════════════════
-// DOM HELPERS
-// ═══════════════════════════════════════════════════════════
-function appendMessage(role, content, meta = {}) {
-  const container = document.getElementById('chatMessages');
-  const div = document.createElement('div');
-  div.className = `msg ${role}`;
+/* ═══════════════════════════════════════════════════════════
+   DOM HELPERS
+═══════════════════════════════════════════════════════════ */
+const container = () => document.getElementById('messages');
+const scroll    = () => { const c = container(); c.scrollTop = c.scrollHeight; };
 
-  if (role === 'user') {
-    div.innerHTML = `<div class="bubble">${escapeHtml(content)}</div>`;
-  } else {
-    let metaHtml = '';
-    if (meta.intent || meta.source || meta.elapsed !== undefined) {
-      metaHtml = '<div class="msg-meta">';
-      if (meta.blocked) metaHtml += `<span class="chip blocked">🚫 Blocked</span>`;
-      if (meta.intent && meta.intent !== 'BLOCKED') metaHtml += `<span class="chip intent">🧭 ${meta.intent}</span>`;
-      if (meta.source) metaHtml += `<span class="chip source">📡 ${meta.source}</span>`;
-      if (meta.elapsed !== undefined) metaHtml += `<span class="chip time">⏱ ${meta.elapsed.toFixed(2)}s</span>`;
-      metaHtml += '</div>';
-    }
+function appendUser(text) {
+  const d = document.createElement('div');
+  d.className = 'msg user';
+  d.innerHTML = `<div class="bubble">${esc(text)}</div>`;
+  container().appendChild(d); scroll();
+}
 
-    div.innerHTML = `
-      <div class="bot-avatar">🎓</div>
-      <div class="bubble">
-        ${renderMarkdown(content)}
-        ${metaHtml}
-      </div>
-    `;
+function appendBot(text, meta={}) {
+  const d = document.createElement('div');
+  d.className = 'msg bot';
+  let chips = '';
+  if (meta.intent || meta.source || meta.elapsed !== undefined) {
+    chips = '<div class="meta">';
+    if (meta.blocked) chips += `<span class="chip blocked">🚫 Blocked</span>`;
+    if (meta.blocked_reason) chips += `<span class="chip blocked">${meta.blocked_reason.substring(0,50)}</span>`;
+    if (meta.intent && meta.intent !== 'BLOCKED') chips += `<span class="chip">🧭 ${meta.intent}</span>`;
+    if (meta.intent_action) chips += `<span class="chip">⚡ ${meta.intent_action}</span>`;
+    if (meta.source) chips += `<span class="chip">📡 ${meta.source}</span>`;
+    if (meta.elapsed != null) chips += `<span class="chip">⏱ ${meta.elapsed.toFixed(2)}s</span>`;
+    chips += '</div>';
   }
-
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
+  d.innerHTML = `
+    <div class="bot-icon">🎓</div>
+    <div class="bubble">${md(text)}${chips}</div>`;
+  container().appendChild(d); scroll();
 }
 
-function showTyping() {
-  const container = document.getElementById('chatMessages');
-  const div = document.createElement('div');
-  div.className = 'typing';
-  div.id = 'typingIndicator';
-  div.innerHTML = `
-    <div class="bot-avatar">🎓</div>
-    <div class="dots">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    </div>
-  `;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
+function showProgress() {
+  const d = document.createElement('div');
+  d.className = 'stream-box';
+  d.innerHTML = `
+    <div class="bot-icon">🎓</div>
+    <div class="bubble">
+      <div class="sp-title"><div class="sp-spinner"></div><span>Đang xử lý...</span></div>
+      <div class="sp-steps"></div>
+    </div>`;
+  container().appendChild(d); scroll();
+  return d;
 }
 
-function hideTyping() {
-  const el = document.getElementById('typingIndicator');
-  if (el) el.remove();
+function updateProgress(el, steps) {
+  const box = el.querySelector('.sp-steps');
+  if (!box) return;
+  const prev = box.querySelector('.sp-step.active');
+  if (prev) prev.classList.remove('active');
+  const s = document.createElement('span');
+  s.className = 'sp-step active';
+  s.textContent = steps[steps.length - 1];
+  box.appendChild(s); scroll();
 }
 
-function updateSendButton() {
+function setBtnLoading(on) {
   const btn = document.getElementById('sendBtn');
-  if (isLoading) {
-    btn.disabled = true;
-    btn.innerHTML = '<div class="spinner"></div>';
-  } else {
-    btn.disabled = false;
-    btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="22" y1="2" x2="11" y2="13"></line>
-      <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-    </svg>`;
-  }
+  btn.disabled = on;
+  btn.innerHTML = on
+    ? '<div class="spinner"></div>'
+    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
 }
 
-function escapeHtml(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\n/g, '<br>');
-}
-
-function autoResize(el) {
+function autoGrow(el) {
   el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  el.style.height = Math.min(el.scrollHeight, 110) + 'px';
 }
 
-function updateCharCount() {
-  const input = document.getElementById('chatInput');
-  const counter = document.getElementById('charCount');
-  const len = input.value.length;
-  const max = 3000;
-
-  if (len === 0) {
-    counter.textContent = '';
-    counter.className = 'char-count';
-  } else {
-    counter.textContent = `${len} / ${max}`;
-    if (len > max * 0.9) counter.className = 'char-count danger';
-    else if (len > max * 0.7) counter.className = 'char-count warn';
-    else counter.className = 'char-count';
-  }
+function newSession() {
+  if (!confirm('Bắt đầu phiên mới? Lịch sử sẽ được xóa.')) return;
+  localStorage.removeItem(SESSION_KEY);
+  location.reload();
 }
 
-// ── Enter to send (Shift+Enter = new line) ──
-document.getElementById('chatInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
+// ── Keyboard ──
+document.getElementById('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
-
-// ── Focus input on load ──
 document.getElementById('chatInput').focus();
 </script>
 </body>

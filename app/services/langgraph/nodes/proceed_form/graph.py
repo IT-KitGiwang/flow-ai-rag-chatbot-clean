@@ -68,7 +68,6 @@ def form_node(state: GraphState) -> GraphState:
 
     return {
         **state,
-        "next_node": "response",
         "final_response": draft,
         "response_source": "form_template",
     }

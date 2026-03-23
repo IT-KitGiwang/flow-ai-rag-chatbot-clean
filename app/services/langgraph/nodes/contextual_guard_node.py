@@ -23,7 +23,7 @@ Chi phí:
 """
 
 import time
-import asyncio
+import concurrent.futures
 from app.services.langgraph.state import GraphState
 from app.utils.guardian_utils import GuardianService
 from app.utils.logger import get_logger
@@ -35,89 +35,57 @@ def contextual_guard_node(state: GraphState) -> GraphState:
     """
     🔴 CHỐT 2: CONTEXTUAL-GUARD — Chặn tinh trên standalone_query.
 
-    Input:  state["standalone_query"] (từ Context Node)
-    Output: state["contextual_guard_passed"], state["contextual_guard_blocked_layer"],
-            state["contextual_guard_message"], state["next_node"],
-            (state["final_response"] nếu blocked)
-
-    Chỉ chạy khi: state["fast_scan_passed"] == True
-                   state["standalone_query"] đã được sinh bởi Context Node
+    Chạy Layer 2a (Llama 86M) + Layer 2b (Qwen 7B) SONG SONG
+    bằng ThreadPoolExecutor — không dùng asyncio (tránh overhead).
     """
-    # Dùng standalone_query (đã có ngữ cảnh) thay vì user_query thô
     query = state.get("standalone_query", state.get("user_query", ""))
     start_time = time.time()
 
     # ════════════════════════════════════════════════════════
-    # LAYER 2: LLM Prompt Guard (Song song 2a + 2b)
-    # 2a: Llama 86M (Groq) — Fast score-based
-    # 2b: Qwen 7B (OpenRouter) — Deep Vietnamese check
+    # LAYER 2: Chạy 2a + 2b SONG SONG bằng ThreadPool (sync)
     # ════════════════════════════════════════════════════════
     try:
-        is_valid, msg = asyncio.run(
-            GuardianService.check_layer_2_concurrent(query)
-        )
-    except RuntimeError as e:
-        # Nếu đang chạy trong event loop có sẵn (FastAPI)
-        logger.warning(
-            "Contextual Guard - asyncio.run() RuntimeError: %s → fallback ThreadPoolExecutor", e
-        )
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            import concurrent.futures
-            
-            def _async_runner():
-                return asyncio.run(GuardianService.check_layer_2_concurrent(query))
-                
-            try:
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(_async_runner)
-                    is_valid, msg = future.result(timeout=15)
-                logger.info("Contextual Guard - ThreadPoolExecutor fallback OK")
-            except Exception as thread_err:
-                logger.error(
-                    "Contextual Guard - ThreadPoolExecutor fallback FAILED: %s → cho qua (SAFE)",
-                    thread_err, exc_info=True
-                )
-                is_valid, msg = True, ""
-        else:
-            logger.error("Contextual Guard - Event loop NOT running nhưng RuntimeError → cho qua (SAFE)")
-            is_valid, msg = True, ""
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            future_2a = pool.submit(GuardianService.check_layer_2a_prompt_guard_fast, query)
+            future_2b = pool.submit(GuardianService.check_layer_2b_prompt_guard_deep, query)
 
-    elapsed = time.time() - start_time
+            # Ai xong trước check trước — nếu UNSAFE thì chặn ngay
+            for future in concurrent.futures.as_completed([future_2a, future_2b], timeout=8):
+                is_valid, msg = future.result()
+                if not is_valid:
+                    # Cancel task còn lại (best effort)
+                    future_2a.cancel()
+                    future_2b.cancel()
+                    elapsed = time.time() - start_time
+                    blocked_layer = "2a" if future is future_2a else "2b"
+                    logger.warning("CONTEXTUAL GUARD [%.3fs] BLOCKED by L%s", elapsed, blocked_layer)
+                    return {
+                        **state,
+                        "contextual_guard_passed": False,
+                        "contextual_guard_blocked_layer": blocked_layer,
+                        "contextual_guard_message": f"[Contextual-Guard L{blocked_layer} — {elapsed:.3f}s] {msg}",
+                        "final_response": msg,
+                        "response_source": "contextual_guard",
+                    }
 
-    if not is_valid:
-        # Xác định layer nào chặn từ message
-        blocked_layer = "2a" if "2a" in msg else "2b"
-        return {
-            **state,
-            "contextual_guard_passed": False,
-            "contextual_guard_blocked_layer": blocked_layer,
-            "contextual_guard_message": f"[Contextual-Guard L{blocked_layer} — {elapsed:.3f}s] {msg}",
-            "next_node": "end",
-            "final_response": msg,
-            "response_source": "contextual_guard",
-        }
+    except concurrent.futures.TimeoutError:
+        elapsed = time.time() - start_time
+        logger.warning("CONTEXTUAL GUARD [%.3fs] TIMEOUT → cho qua (SAFE)", elapsed)
+        is_valid, msg = True, ""
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error("CONTEXTUAL GUARD [%.3fs] ERROR: %s → cho qua (SAFE)", elapsed, e, exc_info=True)
+        is_valid, msg = True, ""
 
     # ════════════════════════════════════════════════════════
     # ✅ PASS — standalone_query an toàn
-    # Cho phép chạy Multi-Query + Intent Classification
     # ════════════════════════════════════════════════════════
+    elapsed = time.time() - start_time
+    logger.info("CONTEXTUAL GUARD [%.3fs] PASS", elapsed)
     return {
         **state,
         "contextual_guard_passed": True,
         "contextual_guard_blocked_layer": None,
         "contextual_guard_message": f"[Contextual-Guard PASS — {elapsed:.3f}s] standalone_query an toàn",
-        "next_node": "multi_query",
     }
 
-
-def contextual_guard_router(state: GraphState) -> str:
-    """
-    Conditional Edge: contextual_guard → multi_query (SAFE) hoặc end (BLOCKED).
-
-    Luồng sau khi PASS:
-      contextual_guard → multi_query → embedding → cache → intent → agent
-    """
-    if state.get("contextual_guard_passed", False):
-        return "multi_query"
-    return "end"

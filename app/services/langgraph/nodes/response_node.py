@@ -86,7 +86,6 @@ def response_node(state: GraphState) -> GraphState:
         logger.info("RESPONSE NODE [%.3fs] BYPASS -> %s", elapsed, response_source)
         return {
             **state,
-            "next_node": "end",
         }
 
     # ══ CONFIDENCE GATE BYPASS (Chỉ chặn khi đây là luồng Thuần RAG - PROCEED_RAG) ══
@@ -104,7 +103,6 @@ def response_node(state: GraphState) -> GraphState:
             **state,
             "final_response": fallback_msg,
             "response_source": "rag_confidence_failed",
-            "next_node": "end",
         }
 
     # ══════════════════════════════════════════════════════════
@@ -119,7 +117,6 @@ def response_node(state: GraphState) -> GraphState:
             **state,
             "final_response": existing_response or state.get("rag_context", ""),
             "response_source": "main_bot_disabled",
-            "next_node": "end",
         }
 
     # ── Chuẩn bị biến cho prompt ──
@@ -155,8 +152,7 @@ def response_node(state: GraphState) -> GraphState:
                 **state,
                 "final_response": generated.strip(),
                 "response_source": f"{response_source}_generated",
-                "next_node": "end",
-            }
+                }
         else:
             # LLM trả về rỗng → fallback về context thô + contact
             logger.warning("RESPONSE NODE [%.3fs] LLM tra rong -> context tho", elapsed)
@@ -172,8 +168,7 @@ def response_node(state: GraphState) -> GraphState:
                 **state,
                 "final_response": empty_fallback,
                 "response_source": f"{response_source}_fallback",
-                "next_node": "end",
-            }
+                }
 
     except Exception as e:
         elapsed = time.time() - start_time
@@ -193,7 +188,6 @@ def response_node(state: GraphState) -> GraphState:
             **state,
             "final_response": fallback,
             "response_source": "main_bot_error",
-            "next_node": "end",
         }
 
 

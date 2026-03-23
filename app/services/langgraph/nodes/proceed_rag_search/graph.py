@@ -107,7 +107,6 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
     if skip_web_search:
         state["final_response"] = rag_context
         state["response_source"] = "rag_db_only"
-        state["next_node"] = "response"
 
         elapsed = time.time() - pipeline_start
         logger.info(
@@ -161,7 +160,6 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
     # Ghi vào final_response (đây là NGỮ CẢNH cho LLM chính, không phải câu trả lời)
     state["final_response"] = merged if merged else rag_context
     state["response_source"] = "rag_search_context"
-    state["next_node"] = "response"
 
     elapsed = time.time() - pipeline_start
     logger.info(

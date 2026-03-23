@@ -260,7 +260,6 @@ def context_node(state: GraphState) -> GraphState:
 
     Output:
       - state["standalone_query"]: Câu hỏi đã reformulate (hoặc giữ nguyên)
-      - state["next_node"]: "contextual_guard"
 
     Logic:
       1. Nếu chat_history RỖNG + skip_if_no_history = true
@@ -280,7 +279,6 @@ def context_node(state: GraphState) -> GraphState:
         return {
             **state,
             "standalone_query": user_query,
-            "next_node": "contextual_guard",
         }
 
     # ── Trường hợp 2: Không có lịch sử → Skip (tiết kiệm $) ──
@@ -290,7 +288,6 @@ def context_node(state: GraphState) -> GraphState:
         return {
             **state,
             "standalone_query": user_query,
-            "next_node": "contextual_guard",
         }
 
     # ── Trường hợp 3: Có lịch sử → Gọi Gemini để reformulate ──
@@ -304,7 +301,6 @@ def context_node(state: GraphState) -> GraphState:
         return {
             **state,
             "standalone_query": standalone,
-            "next_node": "contextual_guard",
         }
     except urllib.error.URLError as e:
         # Timeout hoặc lỗi mạng → Fallback giữ nguyên
@@ -313,7 +309,6 @@ def context_node(state: GraphState) -> GraphState:
         return {
             **state,
             "standalone_query": user_query,
-            "next_node": "contextual_guard",
         }
     except Exception as e:
         elapsed = time.time() - start_time
@@ -321,10 +316,5 @@ def context_node(state: GraphState) -> GraphState:
         return {
             **state,
             "standalone_query": user_query,
-            "next_node": "contextual_guard",
         }
 
-
-def context_router(state: GraphState) -> str:
-    """Conditional Edge: context → contextual_guard (luôn luôn)."""
-    return "contextual_guard"

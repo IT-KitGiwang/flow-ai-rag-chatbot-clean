@@ -80,12 +80,12 @@ auto_summarize:
 
 
 # ══════════════════════════════════════════════════════════════
-# ❻ CONTEXTUAL GUARD — Prompt Guard Layer 2b (Qwen Vietnamese)
+# ❻ CONTEXTUAL GUARD — Prompt Guard Layer 2b (Deep Vietnamese)
 # Quét sâu standalone_query bằng tiếng Việt (SAFE/UNSAFE)
 # ══════════════════════════════════════════════════════════════
 prompt_guard_deep:
   provider: "openrouter"
-  model: "qwen/qwen3.5-flash-02-23"
+  model: "google/gemini-2.0-flash-001"
   temperature: 0.0
   response_format: "json_object"
   fallbacks: []                         # Không fallback — nếu lỗi thì cho qua

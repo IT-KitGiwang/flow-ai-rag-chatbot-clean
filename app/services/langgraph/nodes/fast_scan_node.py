@@ -40,7 +40,6 @@ def fast_scan_node(state: GraphState) -> GraphState:
     Output: state["fast_scan_passed"], state["fast_scan_blocked_layer"],
             state["fast_scan_message"], state["normalized_query"],
             state["original_query"], state["query_was_summarized"],
-            state["next_node"], (state["final_response"] nếu blocked)
     """
     query = state.get("user_query", "")
     start_time = time.time()
@@ -52,7 +51,7 @@ def fast_scan_node(state: GraphState) -> GraphState:
     # ════════════════════════════════════════════════════════
     # LAYER 0a: Hard Limit — Chống DoS (> 2000 ký tự → CHẶN)
     # ════════════════════════════════════════════════════════
-    if len(query) > iv_config.max_input_chars:
+    if len(query) > iv_config.max_input_chars:  
         elapsed = time.time() - start_time
         logger.info(
             "FastScan L0a BLOCKED: %d chars > %d max (%.3fs)",
@@ -66,7 +65,6 @@ def fast_scan_node(state: GraphState) -> GraphState:
             "fast_scan_passed": False,
             "fast_scan_blocked_layer": 0,
             "fast_scan_message": f"[Fast-Scan L0a — {elapsed:.3f}s] Chặn DoS: {len(query)} chars",
-            "next_node": "end",
             "final_response": iv_config.fallback_too_long,
             "response_source": "fast_scan",
         }
@@ -115,7 +113,6 @@ def fast_scan_node(state: GraphState) -> GraphState:
             "fast_scan_passed": False,
             "fast_scan_blocked_layer": 1,
             "fast_scan_message": f"[Fast-Scan L1a — {elapsed:.3f}s] {msg}",
-            "next_node": "end",
             "final_response": msg,
             "response_source": "fast_scan",
         }
@@ -135,7 +132,6 @@ def fast_scan_node(state: GraphState) -> GraphState:
             "fast_scan_passed": False,
             "fast_scan_blocked_layer": 1,
             "fast_scan_message": f"[Fast-Scan L1b — {elapsed:.3f}s] {msg}",
-            "next_node": "end",
             "final_response": msg,
             "response_source": "fast_scan",
         }
@@ -155,7 +151,6 @@ def fast_scan_node(state: GraphState) -> GraphState:
         "fast_scan_passed": True,
         "fast_scan_blocked_layer": None,
         "fast_scan_message": f"[Fast-Scan PASS — {elapsed:.3f}s] Sạch, cho qua Context Node",
-        "next_node": "context",
     }
 
     if query_was_summarized:
@@ -167,8 +162,3 @@ def fast_scan_node(state: GraphState) -> GraphState:
     return result_state
 
 
-def fast_scan_router(state: GraphState) -> str:
-    """Conditional Edge: fast_scan → context (SAFE) hoặc end (BLOCKED)."""
-    if state.get("fast_scan_passed", False):
-        return "context"
-    return "end"

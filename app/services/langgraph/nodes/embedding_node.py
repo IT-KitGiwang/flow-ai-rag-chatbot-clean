@@ -111,7 +111,6 @@ def embedding_node(state: GraphState) -> GraphState:
 
     Output:
       - state["query_embeddings"]: List vectors 1024D
-      - state["next_node"]:        "cache"
 
     Logic:
       1. Gom standalone_query + multi_queries thành 1 batch
@@ -139,7 +138,6 @@ def embedding_node(state: GraphState) -> GraphState:
         return {
             **state,
             "query_embeddings": [],
-            "next_node": "cache",
         }
 
     # ── Gọi API Embedding (1 batch duy nhất) ──
@@ -167,7 +165,6 @@ def embedding_node(state: GraphState) -> GraphState:
         return {
             **state,
             "query_embeddings": embeddings,
-            "next_node": "cache",
         }
 
     except Exception as e:
@@ -176,10 +173,5 @@ def embedding_node(state: GraphState) -> GraphState:
         return {
             **state,
             "query_embeddings": [],
-            "next_node": "cache",
         }
 
-
-def embedding_router(state: GraphState) -> str:
-    """Conditional Edge: embedding → cache (luôn luôn)."""
-    return "cache"

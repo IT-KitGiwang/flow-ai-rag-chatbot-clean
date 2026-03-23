@@ -59,7 +59,6 @@ def multi_query_node(state: GraphState) -> GraphState:
 
     Output:
       - state["multi_queries"]: List 3 biến thể câu hỏi
-      - state["next_node"]: "embedding"
 
     Logic:
       1. Nếu multi_query bị tắt → multi_queries = [] → chỉ dùng standalone_query
@@ -76,7 +75,6 @@ def multi_query_node(state: GraphState) -> GraphState:
         return {
             **state,
             "multi_queries": [],
-            "next_node": "embedding",
         }
 
     # ── Trường hợp 2: Gọi Gemini sinh biến thể ──
@@ -116,7 +114,6 @@ def multi_query_node(state: GraphState) -> GraphState:
         return {
             **state,
             "multi_queries": variants,
-            "next_node": "embedding",
         }
 
     except Exception as e:
@@ -125,7 +122,6 @@ def multi_query_node(state: GraphState) -> GraphState:
         return {
             **state,
             "multi_queries": [],
-            "next_node": "embedding",
         }
 
 

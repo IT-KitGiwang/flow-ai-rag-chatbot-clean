@@ -90,6 +90,8 @@ services:
     volumes:
       # Mount data để ingestion script truy cập ngoài container
       - ./data:/app/data:ro
+      # Mount static để sửa HTML/CSS/JS realtime, không cần build lại
+      - ./static:/app/static
 
     depends_on:
       postgres_vector:

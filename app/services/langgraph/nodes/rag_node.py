@@ -37,7 +37,6 @@ def rag_node(state: GraphState) -> GraphState:
     Output:
       - state["rag_context"]:       Chuỗi text gộp từ 5 Parent Chunks
       - state["retrieved_chunks"]:  Danh sách RRF ranked chunks (debug/monitoring)
-      - state["next_node"]:         Node tiếp theo ("intent")
 
     Logic:
       1. Lấy vector embedding từ state (đã được Embedding Node chuẩn bị)
@@ -57,7 +56,6 @@ def rag_node(state: GraphState) -> GraphState:
             **state,
             "rag_context": "",
             "retrieved_chunks": [],
-            "next_node": "intent",
         }
 
     # ── Lấy vector chính (standalone_query) ──
@@ -114,7 +112,6 @@ def rag_node(state: GraphState) -> GraphState:
             "retrieved_chunks": retrieved_chunks,
             "rag_confidence_failed": rag_confidence_failed,
             "top1_cosine_score": top1_cosine,
-            "next_node": "intent",
         }
 
     except ImportError as e:
@@ -124,7 +121,6 @@ def rag_node(state: GraphState) -> GraphState:
             **state,
             "rag_context": "",
             "retrieved_chunks": [],
-            "next_node": "intent",
         }
 
     except Exception as e:
@@ -134,10 +130,5 @@ def rag_node(state: GraphState) -> GraphState:
             **state,
             "rag_context": "",
             "retrieved_chunks": [],
-            "next_node": "intent",
         }
 
-
-def rag_router(state: GraphState) -> str:
-    """Conditional Edge: rag → intent (luôn luôn)."""
-    return "intent"
