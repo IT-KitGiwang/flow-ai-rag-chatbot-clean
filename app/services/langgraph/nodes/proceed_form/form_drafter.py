@@ -1,12 +1,13 @@
 """
 Form Drafter — Sinh file Markdown mẫu đơn cuối cùng bằng LLM.
 
-Luồng điền thông tin:
-  1. User đã cung cấp info → Điền đúng y nguyên (không sửa, không bịa).
-  2. Field loại "content" (nguyện vọng, lý do...) mà user KHÔNG cung cấp
-     → LLM viết MẪU THAM KHẢO dựa trên reference_hint.
-  3. Field loại "personal" (tên, CCCD, SĐT...) mà user KHÔNG cung cấp
-     → Để trống placeholder: [Điền ... tại đây].
+CHIẾN LƯỢC MỚI (Template-Driven):
+  1. Đọc template gốc (file .md) → Đây là "khuôn" chính xác, có đúng tên đơn + đúng field.
+  2. Trích xuất thông tin user đã cung cấp → Dạng key-value tự do.
+  3. Prompt LLM: "Điền thông tin user vào template, giữ nguyên cấu trúc template,
+     field nào user chưa cung cấp thì giữ nguyên placeholder (___)"
+
+  → LLM KHÔNG ĐƯỢC bịa thêm field, KHÔNG ĐƯỢC đổi tên mẫu đơn.
 """
 
 import time
@@ -45,97 +46,67 @@ def _load_template_content(filename: str) -> tuple[str, str]:
         return "", ""
 
 
-def _build_field_instructions(extracted_fields: dict) -> str:
+def _build_extracted_info_block(extracted_fields: dict) -> str:
     """
-    Xây dựng block hướng dẫn điền cho LLM dựa trên field_type.
-
-    Trả về text dạng:
-        THÔNG TIN NGƯỜI DÙNG ĐÃ CUNG CẤP (ĐIỀN NGUYÊN VĂN):
-        - Họ và tên: Nguyễn Văn A
-
-        CÁC TRƯỜNG CẦN VIẾT MẪU THAM KHẢO (vì người dùng chưa cung cấp):
-        - Lý do / Mong muốn: hãy viết mẫu tham khảo lý do nộp đơn...
-
-        CÁC TRƯỜNG ĐỂ TRỐNG (thông tin cá nhân, người dùng tự điền):
-        - Số CCCD/CMND: [Điền số CCCD/CMND]
+    Xây dựng block thông tin user đã cung cấp — dạng đơn giản, liệt kê key-value.
+    
+    VD:
+        THÔNG TIN NGƯỜI DÙNG ĐÃ CUNG CẤP (ĐIỀN NGUYÊN VĂN VÀO MẪU ĐƠN):
+        - Họ tên: Nguyễn Văn A
+        - Ngành dự tuyển: Quản trị Kinh doanh
     """
-    provided_lines = []
-    reference_lines = []
-    blank_lines = []
+    if not extracted_fields:
+        return "THÔNG TIN NGƯỜI DÙNG: Chưa cung cấp thông tin cá nhân nào.\n"
 
-    for f in form_cfg.fields:
-        val = extracted_fields.get(f.key)
-
+    lines = []
+    for key, val in extracted_fields.items():
         if val:
-            # User đã cung cấp → điền y nguyên
-            provided_lines.append(f"- {f.label}: {val}")
+            # Chuyển key từ snake_case sang label đẹp hơn
+            label = key.replace("_", " ").capitalize()
+            lines.append(f"- {label}: {val}")
 
-        elif f.field_type == "content" and f.reference_hint:
-            # Content field trống → LLM viết mẫu tham khảo
-            reference_lines.append(
-                f"- {f.label}: (Viết mẫu tham khảo — {f.reference_hint})"
-            )
+    if not lines:
+        return "THÔNG TIN NGƯỜI DÙNG: Chưa cung cấp thông tin cá nhân nào.\n"
 
-        else:
-            # Personal field trống → để placeholder
-            placeholder = f.placeholder or f"[Điền {f.label.lower()}]"
-            blank_lines.append(f"- {f.label}: {placeholder}")
-
-    result = ""
-
-    if provided_lines:
-        result += "THONG TIN NGUOI DUNG DA CUNG CAP (DIEN NGUYEN VAN, KHONG DUOC SUA):\n"
-        result += "\n".join(provided_lines) + "\n\n"
-
-    if reference_lines:
-        result += (
-            "CAC TRUONG CAN VIET MAU THAM KHAO "
-            "(nguoi dung chua cung cap, hay viet noi dung tham khao phu hop voi boi canh):\n"
-        )
-        result += "\n".join(reference_lines) + "\n\n"
-
-    if blank_lines:
-        result += (
-            "CAC TRUONG DE TRONG "
-            "(thong tin ca nhan, nguoi dung tu dien, giu nguyen placeholder):\n"
-        )
-        result += "\n".join(blank_lines) + "\n\n"
-
+    result = "THONG TIN NGUOI DUNG DA CUNG CAP (DIEN NGUYEN VAN VAO MAU DON, KHONG DUOC SUA):\n"
+    result += "\n".join(lines) + "\n"
     return result
 
 
 def generate_form(form_metadata: dict, extracted_fields: dict) -> str:
     """
-    Soạn thảo văn bản hành chính với template và thông tin người dùng.
+    Soạn thảo văn bản hành chính dựa trên template gốc và thông tin người dùng.
+    
+    Template-Driven: LLM phải bám sát template, KHÔNG được bịa field hay đổi tên đơn.
     """
     start_time = time.time()
 
+    form_name = form_metadata.get("name", "Mẫu đơn")
+    template_file = form_metadata.get("template_file")
+
     # ── Đọc nội dung mẫu ──
-    metadata, template_content = _load_template_content(
-        form_metadata.get("template_file")
-    )
+    metadata, template_content = _load_template_content(template_file)
 
     if not template_content:
         template_content = (
-            "[Không tìm thấy file mẫu, vui lòng tự sinh bố cục đơn hành chính chung cho "
-            + form_metadata.get("name", "Đơn xin việc") + "]"
+            f"[Không tìm thấy file mẫu cho \"{form_name}\". "
+            f"Vui lòng soạn đơn hành chính với tiêu đề \"{form_name}\" "
+            f"theo đúng chuẩn văn phong hành chính nhà nước.]"
         )
 
-    # ── Xây dựng block hướng dẫn điền thông tin ──
-    info_str = _build_field_instructions(extracted_fields)
+    # ── Xây dựng block thông tin user ──
+    info_str = _build_extracted_info_block(extracted_fields)
 
     # ── Render Prompts ──
     sys_prompt_raw = prompt_manager.get_system("form_drafter")
-    sys_prompt = sys_prompt_raw.replace(
-        "{{ form_name }}", form_metadata.get("name", "Mẫu đơn")
-    )
+    sys_prompt = sys_prompt_raw.replace("{{ form_name }}", form_name)
 
     user_content = prompt_manager.render_user(
         "form_drafter",
         template_metadata=metadata,
         template_content=template_content,
         extracted_info=info_str,
-        form_name=form_metadata.get("name", "Mẫu đơn"),
+        form_name=form_name,
     )
 
     class _DrafterConfig:

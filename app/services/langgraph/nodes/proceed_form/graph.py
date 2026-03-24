@@ -53,11 +53,9 @@ def form_node(state: GraphState) -> GraphState:
     extracted = extract_fields(chat_history, query)
 
     # Log tóm tắt thông tin thu được
-    filled_count = sum(1 for v in extracted.values() if v)
-    total_count = len(extracted)
     logger.info(
-        "Form Node - Extracted %d/%d fields co du lieu",
-        filled_count, total_count,
+        "Form Node - Extracted %d fields co du lieu: %s",
+        len(extracted), list(extracted.keys()),
     )
 
     # Bước 3: Draft form (luôn luôn, không hỏi lại)

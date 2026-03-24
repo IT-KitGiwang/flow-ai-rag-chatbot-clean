@@ -1,6 +1,12 @@
 """
 Field Extractor — Trích xuất thông tin người dùng từ chat_history.
-Sử dụng LLM với Temperature = 0.1 để đảm bảo tính chính xác (Zero Hallucination).
+
+CHIẾN LƯỢC MỚI (Template-Driven):
+  Thay vì dùng danh sách field chung (form_config.yaml),
+  bước Extractor giờ chỉ trích xuất THÔNG TIN THÔ (free-form)
+  mà user đã cung cấp trong chat history.
+  
+  Form Drafter sẽ tự đối chiếu thông tin thô này với template thực tế.
 """
 
 import json
@@ -13,39 +19,45 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Các key thông tin cá nhân phổ biến để trích xuất
+_COMMON_PERSONAL_KEYS = [
+    "ho_ten", "ngay_sinh", "noi_sinh", "gioi_tinh",
+    "dia_chi", "ho_khau", "so_dien_thoai", "email",
+    "cccd", "cmnd", "dan_toc", "ton_giao",
+    "co_quan", "chuc_vu",
+    "nganh_hoc", "truong_tot_nghiep", "nam_tot_nghiep",
+    "xep_loai_tot_nghiep",
+    "nganh_du_tuyen", "dot_du_tuyen",
+    "ly_do", "nguyen_vong", "thong_tin_bo_sung",
+]
+
 
 def extract_fields(chat_history: list, user_query: str) -> dict:
     """
-    Quét lịch sử hội thoại để thu thập giá trị cho các fields trong form_config.
+    Quét lịch sử hội thoại để thu thập MỌI thông tin cá nhân user đã cung cấp.
 
-    Trả về Dict: { "ho_ten": "Nguyen Van A", "nganh_hoc": None, ... }
+    Trả về Dict dạng: { "ho_ten": "Nguyen Van A", "nganh_du_tuyen": "QTKD", ... }
     Giá trị nào không tìm thấy trả về None.
     """
     start_time = time.time()
 
-    # ── Xây dựng danh sách fields cần trích xuất ──
-    fields_list_str = ""
-    for idx, f in enumerate(form_cfg.fields, 1):
-        is_required = (f.field_type == "personal")
-        fields_list_str += (
-            f"{idx}. {f.key}: {f.extract_hint} "
-            f"(Bắt buộc: {'Có' if is_required else 'Không'})\n"
-        )
-
     # ── Xây dựng context từ history ──
     context_str = ""
     if chat_history:
-        for msg in chat_history[-6:]:  # Lấy 6 lượt gần nhất
+        for msg in chat_history[-8:]:  # Lấy 8 lượt gần nhất
             role = "Tư vấn viên" if msg.get("role") == "assistant" else "Người dùng"
             content = msg.get("content", "").replace("\n", " ")
             context_str += f"{role}: {content}\n"
     context_str += f"Người dùng (hiện tại): {user_query}\n"
 
+    # ── Xây dựng danh sách fields hint ──
+    fields_hint = "\n".join(
+        f"- {k}" for k in _COMMON_PERSONAL_KEYS
+    )
+
     # ── Render System Prompt ──
-    # get_system trả raw string, cần replace thủ công vì system_prompt
-    # chứa {{ fields_config }} mà PromptManager không render system prompt.
     sys_prompt_raw = prompt_manager.get_system("form_extractor")
-    sys_prompt = sys_prompt_raw.replace("{{ fields_config }}", fields_list_str)
+    sys_prompt = sys_prompt_raw.replace("{{ fields_config }}", fields_hint)
 
     # ── Render User Prompt (Jinja2 qua PromptManager) ──
     user_content = prompt_manager.render_user(
@@ -76,7 +88,7 @@ def extract_fields(chat_history: list, user_query: str) -> dict:
         elif "```" in cleaned:
             cleaned = cleaned.split("```", 1)[1].split("```", 1)[0].strip()
 
-        # Fallback: tìm object JSON đầu tiên bằng regex đơn giản
+        # Fallback: tìm object JSON đầu tiên bằng regex
         if not cleaned.startswith("{"):
             match = re.search(r'\{[^{}]*\}', cleaned)
             if match:
@@ -84,16 +96,15 @@ def extract_fields(chat_history: list, user_query: str) -> dict:
 
         extracted_data = json.loads(cleaned)
 
-        # ── Chuẩn hoá keys theo config ──
+        # ── Chuẩn hoá: bỏ các giá trị null/empty ──
         result = {}
-        for f in form_cfg.fields:
-            val = extracted_data.get(f.key)
-            if val == "" or str(val).lower() in ("null", "none"):
-                val = None
-            result[f.key] = val
+        for key, val in extracted_data.items():
+            if val and str(val).lower() not in ("null", "none", ""):
+                result[key] = val
 
         elapsed = time.time() - start_time
-        logger.info("Form Extractor [%.3fs] OK -> %s", elapsed, result)
+        logger.info("Form Extractor [%.3fs] OK -> %d fields co du lieu", elapsed, len(result))
+        logger.debug("Form Extractor - Data: %s", result)
         return result
 
     except Exception as e:
@@ -102,4 +113,4 @@ def extract_fields(chat_history: list, user_query: str) -> dict:
             "Form Extractor [%.3fs] Loi: %s -> Fallback Return Empty",
             elapsed, e, exc_info=True,
         )
-        return {f.key: None for f in form_cfg.fields}
+        return {}
