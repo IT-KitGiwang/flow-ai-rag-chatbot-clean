@@ -1,21 +1,22 @@
 """
-Web Search Node — Tìm kiếm Web bằng GPT-4o-mini Search Preview (qua OpenRouter).
+Web Search Node — Gemini 2.5 Flash + Google Search Tool (Native API).
 
 Vị trí:
   [pr_query_node] → [web_search_node] → [synthesizer_node]
 
 Nhiệm vụ:
-  Gọi gpt-4o-mini-search-preview tìm thông tin từ web.
-  - Nhánh UFM Search: Chỉ tìm trên 3 domain cốt lõi (ufm.edu.vn, tuyensinh, pdt)
-  - Nhánh PR Search: Chỉ tìm trên 3 báo lớn nhất (thanhnien, vnexpress, tuoitre)
+  Gọi Gemini 2.5 Flash với google_search tool tìm thông tin từ web.
+  - Nhánh UFM Search: Ưu tiên domain ufm.edu.vn và sub-domains
+  - Nhánh PR Search: Ưu tiên báo lớn (thanhnien, vnexpress, tuoitre)
 
-TỐI ƯU TỐC ĐỘ:
-  - Giới hạn site: operator tối đa 3 domains (thay vì 15-17) để model không bị chậm crawl
-  - Prompt ngắn gọn, không nhồi nhét domain list dài
-  - max_tokens: 500 (chỉ cần raw data, không cần essay)
+CƠ CHẾ:
+  1. Gọi Google Gemini API native với tool google_search
+  2. Gemini tự quyết định khi nào cần search và search gì
+  3. Citations được trích từ groundingMetadata (chính xác, có verify)
+  4. Nếu Google API lỗi → Fallback sang OpenRouter search models
 
-Model: openai/gpt-4o-mini-search-preview (via OpenRouter)
-Fallback: web_search_results = None (Tiếp tục với RAG nội bộ)
+Model: gemini-2.5-flash (Google native API + google_search tool)
+Fallback: OpenRouter (gpt-4o-search-preview, perplexity/sonar)
 """
 
 import json
@@ -34,10 +35,9 @@ logger = get_logger(__name__)
 
 
 # ══════════════════════════════════════════════════════════
-# DOMAIN MAPPING: Chọn 3 domains phù hợp nhất theo ngữ cảnh
+# DOMAIN MAPPING: Chọn domains phù hợp nhất theo ngữ cảnh
 # ══════════════════════════════════════════════════════════
 
-# Các từ khóa → domain ưu tiên (theo thứ tự quan trọng)
 _UFM_DOMAIN_MAP = {
     # Tuyển sinh / Điểm chuẩn / Xét tuyển
     "tuyển sinh":      "tuyensinh.ufm.edu.vn",
@@ -62,18 +62,12 @@ _UFM_DOMAIN_MAP = {
     "ký túc xá":       "ktx.ufm.edu.vn",
 }
 
-# Domain mặc định khi không match từ khóa nào
 _UFM_DEFAULT_DOMAINS = ["ufm.edu.vn", "tuyensinh.ufm.edu.vn", "pdt.ufm.edu.vn"]
-
-# PR: chỉ dùng 3 báo lớn nhất (thay vì 5) để giảm tải
 _PR_TOP_DOMAINS = ["thanhnien.vn", "vnexpress.net", "tuoitre.vn"]
 
 
 def _select_ufm_domains(query: str, max_domains: int = 3) -> list:
-    """
-    Chọn tối đa 3 domains UFM phù hợp nhất dựa trên từ khóa trong câu hỏi.
-    Luôn bao gồm ufm.edu.vn làm fallback.
-    """
+    """Chọn tối đa 3 domains UFM phù hợp nhất dựa trên từ khóa."""
     query_lower = query.lower()
     matched = set()
 
@@ -81,13 +75,11 @@ def _select_ufm_domains(query: str, max_domains: int = 3) -> list:
         if keyword in query_lower:
             matched.add(domain)
 
-    # Luôn có ufm.edu.vn (trang chủ = catch-all)
     matched.add("ufm.edu.vn")
 
     if len(matched) >= max_domains:
         return list(matched)[:max_domains]
 
-    # Bổ sung domain mặc định nếu chưa đủ
     for d in _UFM_DEFAULT_DOMAINS:
         if d not in matched:
             matched.add(d)
@@ -97,58 +89,58 @@ def _select_ufm_domains(query: str, max_domains: int = 3) -> list:
     return list(matched)[:max_domains]
 
 
-
 def _has_year(text: str) -> bool:
     """Kiểm tra câu query đã chứa năm (2020-2030) chưa."""
     return bool(re.search(r'20[2-3]\d', text))
 
 
 def _inject_year_anchor(query: str) -> str:
-    """
-    Bơm 'neo thời gian' vào query nếu người dùng không đề cập năm.
-    Mặc định: năm hiện tại và năm trước (để bắt cả thông báo cuối năm cũ).
-    Ví dụ: 'học phí Marketing' → 'học phí Marketing năm 2025 2026'
-    """
+    """Bơm neo thời gian vào query nếu chưa có năm."""
     if _has_year(query):
         return query
-    
     current_year = datetime.now().year
     prev_year = current_year - 1
     return f"{query} năm {prev_year} {current_year}"
 
 
 def _build_search_query(
-    standalone_query: str, 
-    action: str, 
-    ufm_queries: list, 
-    pr_query: str
+    standalone_query: str,
+    action: str,
+    ufm_queries: list,
+    pr_query: str,
 ) -> str:
-    """Xây dựng prompt search cực ngắn gọn + domain giới hạn + neo thời gian."""
-    
+    """Xây dựng user prompt cho Gemini + Google Search tool."""
+
     if action == "PROCEED_RAG_UFM_SEARCH":
         domains = _select_ufm_domains(standalone_query)
-        domain_filter = " OR ".join(f"site:{d}" for d in domains)
-        
-        # Gộp queries thành 1 câu search ngắn
+        domain_hint = ", ".join(domains)
+
         search_terms = standalone_query
         if ufm_queries:
             search_terms = " | ".join(ufm_queries[:2])
-        
-        # Bơm năm hiện tại nếu chưa có
+
         search_terms = _inject_year_anchor(search_terms)
-        
-        return f"{search_terms} ({domain_filter})"
+
+        return (
+            f"Tìm thông tin chính xác về: {search_terms}\n"
+            f"Ưu tiên nguồn: {domain_hint}\n"
+            f"Trả lời bằng tiếng Việt, ngắn gọn, có dẫn nguồn."
+        )
 
     else:  # PROCEED_RAG_PR_SEARCH
-        domain_filter = " OR ".join(f"site:{d}" for d in _PR_TOP_DOMAINS)
-        
+        domain_hint = ", ".join(_PR_TOP_DOMAINS)
         search_terms = pr_query or standalone_query
         search_terms = _inject_year_anchor(search_terms)
-        return f"UFM {search_terms} ({domain_filter})"
+
+        return (
+            f"Tìm bài báo về Trường ĐH Tài chính - Marketing (UFM): {search_terms}\n"
+            f"Ưu tiên nguồn: {domain_hint}\n"
+            f"Trả lời bằng tiếng Việt, trích dẫn tên bài báo và link."
+        )
 
 
-def _extract_citations(text: str) -> list:
-    """Trích xuất [text](url) thành list."""
+def _extract_citations_from_text(text: str) -> list:
+    """Fallback: Trích xuất [text](url) từ text nếu không có groundingMetadata."""
     pattern = r'\[([^\]]+)\]\((https?://[^\)]+)\)'
     matches = re.findall(pattern, text)
     citations = []
@@ -160,49 +152,150 @@ def _extract_citations(text: str) -> list:
     return citations
 
 
-def _call_search_model(system_prompt: str, user_content: str, config_section) -> str:
-    """Gọi OpenRouter Search API có hỗ trợ Fallback tự động."""
-    return _call_gemini_api_with_fallback(
-        system_prompt=system_prompt,
-        user_content=user_content,
-        config_section=config_section,
-        node_key="web_search"
+# ══════════════════════════════════════════════════════════
+# GOOGLE GEMINI NATIVE API — với google_search tool
+# ══════════════════════════════════════════════════════════
+
+def _call_gemini_native_with_search(
+    system_prompt: str,
+    user_content: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    timeout: int,
+) -> tuple:
+    """
+    Gọi Google Gemini API native với google_search tool.
+
+    Returns: (raw_text, citations)
+      - raw_text: Nội dung phản hồi từ Gemini
+      - citations: List[{text, url}] từ groundingMetadata
+    """
+    api_key = query_flow_config.api_keys.get_key("google")
+    base_url = query_flow_config.api_keys.get_base_url("google")
+
+    if not api_key:
+        raise ValueError("Chưa cấu hình GOOGLE_API_KEY trong .env")
+
+    url = f"{base_url.rstrip('/')}/models/{model}:generateContent?key={api_key}"
+
+    body = {
+        "contents": [
+            {"role": "user", "parts": [{"text": user_content}]}
+        ],
+        "systemInstruction": {
+            "parts": [{"text": system_prompt}]
+        },
+        "tools": [{"google_search": {}}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        },
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers=headers,
+        method="POST",
     )
 
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        result = json.loads(resp.read().decode("utf-8"))
+
+    # ── Parse text từ candidates ──
+    raw_text = ""
+    candidates = result.get("candidates", [])
+    if candidates:
+        parts = candidates[0].get("content", {}).get("parts", [])
+        raw_text = "".join(p.get("text", "") for p in parts if "text" in p)
+
+    # ── Parse citations từ groundingMetadata ──
+    citations = []
+    if candidates:
+        grounding = candidates[0].get("groundingMetadata", {})
+        grounding_chunks = grounding.get("groundingChunks", [])
+        seen_urls = set()
+        for chunk in grounding_chunks:
+            web = chunk.get("web", {})
+            chunk_url = web.get("uri", "")
+            chunk_title = web.get("title", "").strip()
+            if chunk_url and chunk_url not in seen_urls:
+                citations.append({
+                    "text": chunk_title or chunk_url,
+                    "url": chunk_url,
+                })
+                seen_urls.add(chunk_url)
+
+    # Nếu groundingMetadata không có citations, thử regex fallback
+    if not citations:
+        citations = _extract_citations_from_text(raw_text)
+
+    return raw_text, citations
+
+
+# ══════════════════════════════════════════════════════════
+# WEB SEARCH NODE — Hàm chính cho Graph
+# ══════════════════════════════════════════════════════════
 
 def web_search_node(state: GraphState) -> GraphState:
-    """🌐 WEB SEARCH NODE (Domain thông minh + Tốc độ tối ưu)."""
+    """
+    🌐 WEB SEARCH NODE — Gemini 2.5 Flash + Google Search Tool.
+
+    Luồng:
+      1. Gọi Google Gemini native API với google_search tool (PRIMARY)
+      2. Nếu lỗi → Fallback sang OpenRouter search models
+      3. Trích citations từ groundingMetadata (hoặc regex fallback)
+    """
     standalone_query = state.get("standalone_query", state.get("user_query", ""))
     action = state.get("intent_action", "")
     ufm_queries = state.get("ufm_search_queries") or []
     pr_query = state.get("pr_search_query")
-    
+
     config = query_flow_config.web_search
     start_time = time.time()
 
     if not config.enabled:
-        return {**state, "web_search_results": None, "web_search_citations": None, "next_node": "synthesizer"}
+        return {
+            **state,
+            "web_search_results": None,
+            "web_search_citations": None,
+            "next_node": "synthesizer",
+        }
 
+    # ── Xây dựng search prompt ──
+    search_prompt = _build_search_query(
+        standalone_query=standalone_query,
+        action=action,
+        ufm_queries=ufm_queries,
+        pr_query=pr_query,
+    )
+
+    system_prompt = prompt_manager.get_system("web_search_node")
+    logger.info("Web Search - Prompt: '%s'", search_prompt[:120])
+
+    # ══════════════════════════════════════════════════════
+    # BƯỚC 1: Thử Google Gemini Native + google_search tool
+    # ══════════════════════════════════════════════════════
     try:
-        search_prompt = _build_search_query(
-            standalone_query=standalone_query,
-            action=action,
-            ufm_queries=ufm_queries,
-            pr_query=pr_query,
-        )
-
-        # Log prompt gửi đi (debug)
-        logger.info("Web Search - Prompt: '%s'", search_prompt[:120])
-
-        raw_result = _call_search_model(
-            system_prompt=prompt_manager.get_system("web_search_node"),
+        raw_result, citations = _call_gemini_native_with_search(
+            system_prompt=system_prompt,
             user_content=search_prompt,
-            config_section=config,
+            model=config.model,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+            timeout=config.timeout_seconds,
         )
 
-        citations = _extract_citations(raw_result)
         elapsed = time.time() - start_time
-        logger.info("Web Search [%.3fs] (%s) Tim duoc %d trich dan", elapsed, action, len(citations))
+        logger.info(
+            "Web Search [%.3fs] GOOGLE OK (%s) %d citations, %d chars",
+            elapsed, config.model, len(citations), len(raw_result),
+        )
 
         return {
             **state,
@@ -211,9 +304,44 @@ def web_search_node(state: GraphState) -> GraphState:
             "next_node": "synthesizer",
         }
 
-    except Exception as e:
+    except Exception as google_err:
+        elapsed_google = time.time() - start_time
+        logger.warning(
+            "Web Search [%.3fs] GOOGLE FAIL (%s): %s → Thu fallback OpenRouter",
+            elapsed_google, config.model, google_err,
+        )
+
+    # ══════════════════════════════════════════════════════
+    # BƯỚC 2: Fallback → OpenRouter search models
+    # ══════════════════════════════════════════════════════
+    try:
+        raw_result = _call_gemini_api_with_fallback(
+            system_prompt=system_prompt,
+            user_content=search_prompt,
+            config_section=config,
+            node_key="web_search",
+        )
+
+        citations = _extract_citations_from_text(raw_result)
         elapsed = time.time() - start_time
-        logger.error("Web Search [%.3fs] FALLBACK: %s", elapsed, e, exc_info=True)
+        logger.info(
+            "Web Search [%.3fs] FALLBACK OK, %d citations, %d chars",
+            elapsed, len(citations), len(raw_result),
+        )
+
+        return {
+            **state,
+            "web_search_results": raw_result,
+            "web_search_citations": citations,
+            "next_node": "synthesizer",
+        }
+
+    except Exception as fallback_err:
+        elapsed = time.time() - start_time
+        logger.error(
+            "Web Search [%.3fs] ALL FAILED: Google=%s | Fallback=%s",
+            elapsed, google_err, fallback_err, exc_info=True,
+        )
         return {
             **state,
             "web_search_results": None,

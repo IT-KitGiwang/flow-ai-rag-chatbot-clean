@@ -9,6 +9,15 @@ from app.core.config import models_yaml_data
 _rs_data = models_yaml_data
 
 # ============================================================
+# PROCEED RAG SEARCH PIPELINE (Master Toggle)
+# ============================================================
+_prs = _rs_data.get("proceed_rag_search", {})
+
+class ProceedRagSearchConfig(BaseModel):
+    """Bật/tắt TOÀN BỘ luồng Web Search. Khi tắt, bot chỉ dùng DB nội bộ."""
+    enabled: bool = _prs.get("enabled", True)
+
+# ============================================================
 # PR QUERY GENERATION (Dành cho PR Search)
 # ============================================================
 _pq = _rs_data.get("pr_query", {})
@@ -43,11 +52,11 @@ _ws = _rs_data.get("web_search", {})
 
 class WebSearchConfig(BaseModel):
     enabled: bool = _ws.get("enabled", True)
-    provider: str = _ws.get("provider", "openai")
-    model: str = _ws.get("model", "gpt-4o-mini-search-preview")
-    temperature: float = _ws.get("temperature", 0.2)
-    max_tokens: int = _ws.get("max_tokens", 800)
-    timeout_seconds: int = _ws.get("timeout_seconds", 15)
+    provider: str = _ws.get("provider", "google")
+    model: str = _ws.get("model", "gemini-2.5-flash")
+    temperature: float = _ws.get("temperature", 0.1)
+    max_tokens: int = _ws.get("max_tokens", 1500)
+    timeout_seconds: int = _ws.get("timeout_seconds", 20)
     ufm_domains: List[str] = _ws.get("ufm_domains", [
         "ufm.edu.vn", "tuyensinh.ufm.edu.vn", "nhaphoc.ufm.edu.vn"
     ])

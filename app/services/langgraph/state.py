@@ -167,13 +167,12 @@ class GraphState(TypedDict, total=False):
     program_name_filter: Optional[str]   # Tên ngành (ILIKE match) | None
 
     # ════════════════════════════════════════════════════════
-    # 9. RAG NODE
-    # Ghi bởi: RAG Agent Node
+    # 9. RAG NODE + CONTEXT CURATOR
+    # Ghi bởi: RAG Agent Node + Context Curator (Gemini 2.5 Flash)
     # ════════════════════════════════════════════════════════
     retrieved_chunks: Optional[list]
-    rag_context: Optional[str]
-    rag_confidence_failed: Optional[bool]      # True = top1 cosine < ngưỡng (0.85)
-    top1_cosine_score: Optional[float]         # Cosine score của chunk vector hàng đầu
+    rag_context: Optional[str]                 # Context ĐÃ CURATE (chỉ info liên quan)
+    top1_cosine_score: Optional[float]         # Cosine score top1 (monitoring only)
 
     # ════════════════════════════════════════════════════════
     # 9b. PROCEED RAG SEARCH (Web-Augmented RAG Pipeline)

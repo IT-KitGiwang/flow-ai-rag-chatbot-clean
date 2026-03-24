@@ -101,6 +101,7 @@ from app.core.config.intent import VectorRouterConfig, IntentValidatorConfig, Se
 from app.core.config.query_context import MemoryConfig, QueryReformulationConfig, MultiQueryConfig, EmbeddingConfig
 from app.core.config.intent_routing import IntentThresholdConfig, IntentActionConfig, ResponseTemplateConfig
 from app.core.config.rag_search import (
+    ProceedRagSearchConfig,
     PRQueryConfig, UFMQueryConfig, WebSearchConfig,
     InfoSynthesizerConfig, PRSynthesizerConfig, SanitizerConfig,
     SearchCacheConfig, EvaluatorConfig
@@ -127,6 +128,7 @@ class QueryFlowConfig(BaseModel):
     embedding: EmbeddingConfig = EmbeddingConfig()
     main_bot: MainBotConfig = MainBotConfig()
     # RAG Search Pipeline
+    proceed_rag_search: ProceedRagSearchConfig = ProceedRagSearchConfig()
     pr_query: PRQueryConfig = PRQueryConfig()
     ufm_query: UFMQueryConfig = UFMQueryConfig()
     web_search: WebSearchConfig = WebSearchConfig()

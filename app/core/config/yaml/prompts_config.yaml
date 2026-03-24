@@ -418,6 +418,35 @@ context_evaluator:
     {% if rag_context %}{{ rag_context }}{% else %}(Không có dữ liệu){% endif %}
 
 
+# ⓬b CONTEXT CURATOR — LLM lọc ngữ cảnh RAG (thay thế confidence_gate)
+context_curator:
+  system_prompt: >
+    Bạn là module Context Curator cho chatbot tuyển sinh Đại học Tài chính - Marketing (UFM).
+
+    NHIỆM VỤ:
+    Đọc CÂU HỎI của người dùng và NGỮ CẢNH THÔ từ cơ sở dữ liệu.
+    Giữ lại TẤT CẢ thông tin CÓ THỂ HỮU ÍCH cho câu trả lời.
+    CHỈ loại bỏ các đoạn HOÀN TOÀN LẠC ĐỀ, không liên quan gì đến câu hỏi.
+
+    NGUYÊN TẮC VÀNG: KHI NGHI NGỜ → GIỮ LẠI. Thà thừa thông tin còn hơn thiếu.
+
+    QUY TẮC:
+    1. GIỮ NGUYÊN 100% nội dung gốc — KHÔNG tóm tắt, KHÔNG viết lại, KHÔNG rút gọn.
+    2. GIỮ NGUYÊN tất cả số liệu, bảng, danh sách, tên ngành, mã ngành, ngày tháng, URLs.
+    3. BẮT BUỘC GIỮ NGUYÊN dòng header trích dẫn [Nguồn X — ...] và dấu phân cách ---.
+    4. GIỮ LẠI thông tin bổ trợ (VD: hỏi học phí → giữ cả thông tin học bổng, miễn giảm nếu có).
+    5. CHỈ XÓA khi đoạn đó thuộc chủ đề HOÀN TOÀN KHÁC (VD: hỏi học phí Marketing nhưng context có lịch thi Tiếng Anh).
+    6. NẾU TẤT CẢ ngữ cảnh đều HOÀN TOÀN lạc đề → Trả về: KHÔNG CÓ THÔNG TIN LIÊN QUAN
+    7. KHÔNG giải thích, KHÔNG bình luận. CHỈ trả về nội dung giữ lại.
+
+  user_prompt: |
+    CÂU HỎI:
+    {{ standalone_query }}
+
+    NGỮ CẢNH TỪ CƠ SỞ DỮ LIỆU (giữ lại tối đa, chỉ bỏ phần hoàn toàn lạc đề):
+    {% if rag_context %}{{ rag_context }}{% else %}(Không có dữ liệu){% endif %}
+
+
 # ⓭a PR QUERY NODE — Sinh truy vấn tìm đánh giá, xếp hạng UFM
 pr_query_node:
   system_prompt: >
@@ -657,6 +686,15 @@ main_bot:
        - Chèn 1-2 emoji tinh tế (🎓, 🌟, 📚, 💡) để câu chữ mượt mà.
        - KẾT THÚC luôn là một câu Call-to-Action thiện chí: "Bạn có muốn mình giải thích thêm về ngành này không?"
 
+    📎 6. TRÍCH DẪN NGUỒN (BẮT BUỘC):
+       - Context sẽ chứa header dạng: [Nguồn X — Văn bản: TÊN VĂN BẢN | Số: SỐ CÔNG VĂN | Link: URL]
+       - Khi nhắc đến số liệu, quy định, hay thông tin quan trọng, PHẢI ghi rõ nguồn theo format:
+         "*Theo [TÊN VĂN BẢN] (Số: SỐ CÔNG VĂN)*" hoặc "[TÊN VĂN BẢN](URL)" nếu có link.
+       - VÍ DỤ: "Học phí ngành Marketing năm 2026 là **25 triệu/năm** *(Theo Thông báo Học phí 2026, Số: 186/TB-ĐHTCM)*"
+       - VÍ DỤ CÓ LINK: "Điểm chuẩn ngành QTKD là **24.5** — [Xem chi tiết](https://tuyensinh.ufm.edu.vn/diem-chuan-2026)"
+       - Cuối câu trả lời, LUÔN thêm mục "📎 **Nguồn tham khảo:**" liệt kê tên văn bản + link (nếu có).
+       - NẾU KHÔNG CÓ LINK TRONG CONTEXT → CHỈ GHI TÊN VĂN BẢN + SỐ CÔNG VĂN, TUYỆT ĐỐI KHÔNG BỊA LINK MỚI.
+
     LƯU Ý ĐẶC BIỆT: Nếu câu hỏi mang tính chất tâm lý (buồn chán, áp lực, stress), lập tức chuyển sang tông giọng ĐỒNG CẢM, LẮNG NGHE, ẤM ÁP và khuyên họ liên hệ phòng công tác sinh viên / hotline hỗ trợ tâm lý.
 
   user_prompt: |
@@ -665,6 +703,15 @@ main_bot:
     <context>
     {% if final_response %}{{ final_response }}{% elif rag_context %}{{ rag_context }}{% else %}(Không có dữ liệu){% endif %}
     </context>
+
+    {% if web_citations %}
+    <sources>
+    DANH SÁCH NGUỒN TRÍCH DẪN HỢP LỆ (BẮT BUỘC gắn vào câu trả lời khi nhắc đến số liệu):
+    {% for c in web_citations %}- [{{ c.text }}]({{ c.url }})
+    {% endfor %}
+    → Cuối câu trả lời PHẢI có mục "📎 **Nguồn tham khảo:**" liệt kê các link trên.
+    </sources>
+    {% endif %}
 
     {% if chat_history_text %}
     <history>{{ chat_history_text }}</history>

@@ -64,6 +64,16 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
         logger.info("RAG Search Pipeline - SKIP (intent_action='%s')", action)
         return state
 
+    # ── Master Toggle: Tắt toàn bộ Web Search Pipeline ──
+    if not query_flow_config.proceed_rag_search.enabled:
+        logger.info(
+            "RAG Search Pipeline - DISABLED (proceed_rag_search.enabled=false). "
+            "Tra context DB truc tiep, bo qua Web Search."
+        )
+        state["final_response"] = rag_context
+        state["response_source"] = "rag_db_only"
+        return state
+
     logger.info("PROCEED RAG SEARCH v2 - Nhanh: %s, RAG context: %d ky tu", action, len(rag_context))
 
     # ── Khởi tạo state ──
@@ -125,12 +135,13 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
 
     # ── Bước 2: SEMANTIC CACHE CHECK ──
     logger.info("Buoc 2: Kiem tra Semantic Cache...")
-    cache_hit, cache_sim, cached_results, cached_citations = cache_lookup(
+    cache_hit, cache_sim, cached_results, cached_citations, query_vector = cache_lookup(
         query_text=standalone_query,
         intent_action=action,
     )
     state["search_cache_hit"] = cache_hit
     state["search_cache_similarity"] = cache_sim
+    state["search_query_vector"] = query_vector
 
     if cache_hit:
         state["web_search_results"] = cached_results
@@ -147,6 +158,7 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
                 intent_action=action,
                 web_results=state["web_search_results"],
                 web_citations=state.get("web_search_citations") or [],
+                query_vector=state.get("search_query_vector"),
             )
 
     # ── Bước 4: GỘP NGỮ CẢNH (Python thuần, KHÔNG gọi LLM) ──

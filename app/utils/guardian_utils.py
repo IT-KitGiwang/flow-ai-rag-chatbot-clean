@@ -72,27 +72,46 @@ class GuardianService:
 
     # ================================================================
     # LỚP 2a: Llama 86M - Score-based (Quét nhanh)
+    # Groq text classification: CHỈ chấp nhận 1 user message duy nhất
     # ================================================================
     @staticmethod
     def check_layer_2a_prompt_guard_fast(text: str) -> Tuple[bool, str]:
-        """LỚP 2a: Llama 86M quét nhanh bằng điểm số."""
+        """LỚP 2a: Llama 86M quét nhanh bằng điểm số (Groq text classification)."""
         config = query_flow_config.prompt_guard_fast
         
         try:
-            class _TempConfig:
-                pass
-            tc = _TempConfig()
-            tc.provider = config.provider
-            tc.model = config.model
-            tc.temperature = 0.0
-            tc.max_tokens = config.max_tokens_per_chunk
-            tc.timeout_seconds = 8
+            api_key = query_flow_config.api_keys.get_key(config.provider)
+            base_url = query_flow_config.api_keys.get_base_url(config.provider)
 
-            output = GuardianService._call_llm_api(
-                config_section=tc,
-                system_prompt=prompt_manager.get_system("prompt_guard_fast"),
-                user_content=text,
+            if not api_key:
+                return True, "Bỏ qua 2a (chưa cấu hình Groq API Key)"
+
+            url = f"{base_url.rstrip('/')}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            }
+            # Groq text classification: CHỈ 1 user message, KHÔNG có system
+            data = {
+                "model": config.model,
+                "messages": [
+                    {"role": "user", "content": text},
+                ],
+                "temperature": 0.0,
+                "max_tokens": config.max_tokens_per_chunk,
+            }
+
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(data).encode("utf-8"),
+                headers=headers,
+                method="POST",
             )
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                output = result["choices"][0]["message"]["content"].strip()
+
             print(f"   [Debug 2a] Llama Guard Score: '{output}'")
             
             try:
@@ -106,8 +125,6 @@ class GuardianService:
                 return False, f"{config.fallback_unsafe} (Score: {score:.2%})"
             return True, ""
             
-        except ValueError as e:
-            return True, f"Bỏ qua 2a ({str(e)})"
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8")
             return True, f"Bỏ qua 2a (API Error: {error_body[:200]})"
@@ -130,7 +147,7 @@ class GuardianService:
             tc.model = config.model
             tc.temperature = config.temperature
             tc.max_tokens = 20
-            tc.timeout_seconds = 8
+            tc.timeout_seconds = 4
 
             output = GuardianService._call_llm_api(
                 config_section=tc,

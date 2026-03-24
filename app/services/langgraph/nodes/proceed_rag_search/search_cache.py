@@ -91,29 +91,33 @@ def _embed_query(query_text: str) -> Optional[list]:
 def cache_lookup(
     query_text: str, 
     intent_action: str
-) -> Tuple[bool, float, Optional[str], Optional[list]]:
+) -> Tuple[bool, float, Optional[str], Optional[list], Optional[list]]:
     """
     🔍 TRA CỨU CACHE — So sánh ngữ nghĩa với entries đã lưu.
 
-    Returns: (cache_hit, similarity, web_results, web_citations)
+    Returns: (cache_hit, similarity, web_results, web_citations, query_vector)
       - cache_hit=True:  Trả kết quả từ cache
       - cache_hit=False: Cần gọi Web Search API
+      - query_vector:    Vector của query (để tái sử dụng khi lưu cache)
     """
     config = query_flow_config.search_cache
 
     if not config.enabled:
-        return False, 0.0, None, None
+        return False, 0.0, None, None, None
 
     # Bước 1: Dọn entries hết hạn
     _cleanup_expired()
 
     if not _search_cache:
-        return False, 0.0, None, None
+        # Cache rỗng → không có gì để so sánh → MISS ngay
+        # Không gọi embedding ở đây (cache_save sẽ tự embed khi cần)
+        logger.info("Search Cache - CACHE MISS (cache rong)")
+        return False, 0.0, None, None, None
 
-    # Bước 2: Nhúng query hiện tại
+    # Bước 2: Nhúng query hiện tại (CHỈ khi có entries để so sánh)
     query_vector = _embed_query(query_text)
     if query_vector is None:
-        return False, 0.0, None, None
+        return False, 0.0, None, None, None
 
     # Bước 3: Tìm entry có cosine cao nhất (cùng nhánh intent)
     best_sim = 0.0
@@ -132,13 +136,13 @@ def cache_lookup(
     # Bước 4: Kiểm tra ngưỡng
     if best_sim >= config.similarity_threshold and best_entry:
         logger.info("Search Cache - CACHE HIT (cosine=%.4f >= %.2f)", best_sim, config.similarity_threshold)
-        return True, best_sim, best_entry["web_results"], best_entry["web_citations"]
+        return True, best_sim, best_entry["web_results"], best_entry["web_citations"], query_vector
     else:
         if best_entry:
             logger.info("Search Cache - CACHE MISS (cosine=%.4f < %.2f)", best_sim, config.similarity_threshold)
         else:
             logger.info("Search Cache - CACHE MISS (khong co entry cung nhanh)")
-        return False, best_sim, None, None
+        return False, best_sim, None, None, query_vector
 
 
 def cache_save(
@@ -146,9 +150,11 @@ def cache_save(
     intent_action: str,
     web_results: str,
     web_citations: list,
+    query_vector: Optional[list] = None,
 ) -> None:
     """
     💾 LƯU VÀO CACHE — Ghi kết quả web search mới.
+    Nhận `query_vector` từ bước lookup để tránh nhúng lại.
     """
     global _search_cache
     config = query_flow_config.search_cache
@@ -159,8 +165,10 @@ def cache_save(
     if not web_results:
         return  # Không cache kết quả null (fallback)
 
-    # Nhúng query
-    query_vector = _embed_query(query_text)
+    # Nếu truyền sẵn vector từ bước lookup thì dùng luôn, không thì nhúng lại
+    if query_vector is None:
+        query_vector = _embed_query(query_text)
+        
     if query_vector is None:
         return
 

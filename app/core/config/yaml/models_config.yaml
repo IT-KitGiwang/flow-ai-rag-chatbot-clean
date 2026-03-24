@@ -147,7 +147,13 @@ semantic_router:
 
 # ══════════════════════════════════════════════════════════════
 # ⓫ PROCEED RAG SEARCH — Web-Augmented RAG Pipeline
+#    enabled: true/false → Bật/tắt TOÀN BỘ luồng Web Search
+#    Khi tắt (false): Bot chỉ dùng context DB nội bộ, bỏ qua
+#    Query Gen + Web Search + Synthesizer + Sanitizer.
+#    Các agent khác (Care, Form, Response) vẫn hoạt động bình thường.
 # ══════════════════════════════════════════════════════════════
+proceed_rag_search:
+  enabled: true                          # true = Bật Web Search | false = Chỉ dùng DB
 
 # 11a. PR Query Generator (Sinh truy vấn PR cho Web Search)
 pr_query:
@@ -171,12 +177,15 @@ ufm_query:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"
 
-# 11c. Web Search Agent (Crawl web thực tế)
+# 11c. Web Search Agent (Gemini 2.5 Flash + Google Search Tool)
+#      PRIMARY: Google native API + google_search tool (grounding)
+#      FALLBACK: OpenRouter search models (gpt-4o-search, perplexity)
 web_search:
-  provider: "openrouter"
-  model: "openai/gpt-4o-mini-search-preview"
+  enabled: true
+  provider: "google"                     # Google native API (dùng GOOGLE_API_KEY)
+  model: "gemini-2.5-flash"             # Model native (KHÔNG có prefix google/)
   temperature: 0.1
-  max_tokens: 1500                       # Tăng để đủ chỗ cho nội dung + link HTTPS đầy đủ
+  max_tokens: 1500
   timeout_seconds: 20
   ufm_domains:
     - "ufm.edu.vn"
@@ -199,7 +208,7 @@ web_search:
     - "tuoitre.vn"
     - "dantri.com.vn"
     - "giaoducthoidai.vn"
-  fallbacks:
+  fallbacks:                             # Fallback dùng OpenRouter nếu Google API lỗi
     - provider: "openrouter"
       model: "openai/gpt-4o-search-preview"
     - provider: "openrouter"
@@ -239,14 +248,16 @@ sanitizer:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"
 
-# 11g. Context Evaluator (Self-RAG Gate — DB đủ hay cần Web Search?)
+# 11g. Context Evaluator + Context Curator (dùng chung model config)
+# Evaluator: YES/NO (RAG Search gate) — max_tokens thấp
+# Curator: Lọc ngữ cảnh RAG cho main bot — cần max_tokens cao
 context_evaluator:
   enabled: true
   provider: "openrouter"
-  model: "google/gemini-2.5-flash"  # Đổi từ gemini-3.0 vì chưa ổn định
+  model: "google/gemini-2.5-flash"
   temperature: 0.0                      # Tuyệt đối tất định
-  max_tokens: 15                        # Chỉ cần "YES" hoặc "NO"
-  timeout_seconds: 5
+  max_tokens: 4000                      # Curator cần trả về context đã lọc
+  timeout_seconds: 8                    # Curator xử lý context dài hơn
   fallbacks:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"

@@ -52,7 +52,6 @@ _BYPASS_SOURCES = {
     "contextual_guard",
     "keyword_filter",
     "input_validation",
-    "rag_confidence_failed",
 }
 
 
@@ -88,22 +87,10 @@ def response_node(state: GraphState) -> GraphState:
             **state,
         }
 
-    # ══ CONFIDENCE GATE BYPASS (Chỉ chặn khi đây là luồng Thuần RAG - PROCEED_RAG) ══
-    intent_action = state.get("intent_action", "")
-    if intent_action == "PROCEED_RAG" and state.get("rag_confidence_failed"):
-        gate_cfg = query_flow_config.retriever.confidence_gate
-        fallback_msg = (
-            f"{gate_cfg.fallback_message}\n\n"
-            f"Bạn cũng có thể liên hệ trực tiếp để được hỗ trợ nhanh nhất:\n"
-            f"{get_hotline_short()}"
-        )
-        elapsed = time.time() - start_time
-        logger.warning("RESPONSE NODE [%.3fs] CONFIDENCE GATE FAILED (Pure RAG)", elapsed)
-        return {
-            **state,
-            "final_response": fallback_msg,
-            "response_source": "rag_confidence_failed",
-        }
+    # ══════════════════════════════════════════════════════════
+    # (Confidence Gate đã được thay thế bằng Context Curator
+    #  ở rag_node — không cần check rag_confidence_failed nữa)
+    # ══════════════════════════════════════════════════════════
 
     # ══════════════════════════════════════════════════════════
     # NHÁNH B: GENERATE — Gọi Gemini 3.0 Flash sinh câu trả lời
@@ -122,6 +109,7 @@ def response_node(state: GraphState) -> GraphState:
     # ── Chuẩn bị biến cho prompt ──
     rag_context = state.get("rag_context") or ""
     chat_history_text = state.get("chat_history_text") or ""
+    web_citations = state.get("web_search_citations") or []
 
     try:
         # ── Render prompt từ prompts.yaml ──
@@ -132,6 +120,7 @@ def response_node(state: GraphState) -> GraphState:
             final_response=existing_response,
             rag_context=rag_context,
             chat_history_text=chat_history_text,
+            web_citations=web_citations,
         )
 
         logger.info("RESPONSE NODE - Goi LLM %s/%s, query='%s'", config.provider, config.model, standalone_query[:80])

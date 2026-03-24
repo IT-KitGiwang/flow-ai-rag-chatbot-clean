@@ -402,7 +402,8 @@ def fetch_parent_contents(
                 ma_nganh,
                 academic_year,
                 chunk_level,
-                char_count
+                char_count,
+                extra
             FROM knowledge_chunks
             WHERE chunk_id = ANY(%s)
               AND is_active = TRUE
@@ -447,14 +448,23 @@ def format_rag_context(
             else:
                 break
 
-        # Gắn metadata header trích dẫn cấu trúc (Tên văn bản + Mục + Ngành)
+        # Gắn metadata header trích dẫn cấu trúc (Tên văn bản + Mục + Ngành + URL)
         if pr_cfg.include_metadata:
             citation_parts = []
+            extra = doc.get("extra") or {}
 
-            # Tên file gốc (Tên văn bản/công văn)
+            # Tên văn bản chính thức (từ extra.title hoặc source filename)
+            doc_title = extra.get("title") or ""
             source = doc.get("source") or ""
-            if source:
-                citation_parts.append(f"Văn bản: {source}")
+            if doc_title:
+                citation_parts.append(f"Văn bản: {doc_title}")
+            elif source:
+                citation_parts.append(f"Tài liệu: {source}")
+
+            # Số công văn (từ extra.doc_number)
+            doc_number = extra.get("doc_number") or ""
+            if doc_number:
+                citation_parts.append(f"Số: {doc_number}")
 
             section_path = doc.get("section_path") or ""
             if section_path:
@@ -476,6 +486,11 @@ def format_rag_context(
             academic_year = doc.get("academic_year") or ""
             if academic_year:
                 citation_parts.append(f"Năm: {academic_year}")
+
+            # URL nguồn (từ extra.source_url)
+            source_url = extra.get("source_url") or ""
+            if source_url:
+                citation_parts.append(f"Link: {source_url}")
 
             if citation_parts:
                 citation = " | ".join(citation_parts)

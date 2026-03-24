@@ -64,8 +64,6 @@ def _create_initial_state(
         # ── RAG output ──
         "rag_context": "",
         "retrieved_chunks": [],
-        "rag_confidence_failed": False,
-        "top1_cosine_score": 0.0,
 
         # ── Intent output ──
         "intent": "",
@@ -401,8 +399,6 @@ def _write_stream_log(
             elif node_name == "rag":
                 w(f"{'rag_context':>40s}  │  {len(state.get('rag_context', ''))} chars")
                 w(f"{'retrieved_chunks':>40s}  │  {len(state.get('retrieved_chunks', []))} chunks")
-                w(f"{'top1_cosine_score':>40s}  │  {state.get('top1_cosine_score', 0):.4f}")
-                w(f"{'rag_confidence_failed':>40s}  │  {'✗' if state.get('rag_confidence_failed') else '✓'} {state.get('rag_confidence_failed')}")
             elif node_name == "rag_search":
                 w(f"{'response_source':>40s}  │  {state.get('response_source', '')}")
                 w(f"{'final_response':>40s}  │  {len(state.get('final_response', ''))} chars")
