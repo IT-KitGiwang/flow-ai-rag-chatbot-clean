@@ -8,10 +8,6 @@ program_level: tien_si
 academic_year: "2026"
 keywords: [tiến sĩ, NCS, nghiên cứu sinh]
 ---
-# THÔNG BÁO
-## Về việc tuyển sinh trình độ tiến sĩ đợt 1 năm 2026
-## MẪU ĐỀ CƯƠNG NGHIÊN CỨU CỦA THÍ SINH DỰ TUYỂN NGHIÊN CỨU SINH
--start-
 # ĐỀ CƯƠNG NGHIÊN CỨU CỦA THÍ SINH DỰ TUYỂN NGHIÊN CỨU SINH
 
 ## A. THÔNG TIN CHUNG

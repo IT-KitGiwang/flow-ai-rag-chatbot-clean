@@ -189,9 +189,9 @@ def classify_by_llm(standalone_query: str) -> tuple:
                 api_key=api_key,
                 base_url=base_url,
                 model=entry["model"],
-                temperature=0.0,  # Ép 0.0 để JSON luôn chuẩn xác
-                max_tokens=150,
-                timeout=10,
+                temperature=query_flow_config.semantic_router.temperature,
+                max_tokens=query_flow_config.semantic_router.max_tokens,
+                timeout=query_flow_config.semantic_router.timeout_seconds,
             )
             elapsed = time.time() - start_t
             parsed = _extract_json(raw)

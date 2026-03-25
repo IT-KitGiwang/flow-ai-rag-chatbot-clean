@@ -47,6 +47,8 @@ class SemanticRouterConfig(BaseModel):
     provider: str = _sr.get("provider", "openrouter")
     model: str = _sr.get("model", "qwen/qwen-2.5-7b-instruct")
     temperature: float = _sr.get("temperature", 0.0)
+    max_tokens: int = _sr.get("max_tokens", 150)
+    timeout_seconds: int = _sr.get("timeout_seconds", 12)
     response_format: Literal["json_object"] = _sr.get("response_format", "json_object")
     
     # System Prompt hướng dẫn LLM phân loại intent

@@ -82,6 +82,8 @@ class PromptGuardDeepConfig(BaseModel):
     provider: str = _pgd.get("provider", "openrouter")
     model: str = _pgd.get("model", "qwen/qwen-2.5-7b-instruct")
     temperature: float = _pgd.get("temperature", 0.0)
+    max_tokens: int = _pgd.get("max_tokens", 50)
+    timeout_seconds: int = _pgd.get("timeout_seconds", 5)
     response_format: str = _pgd.get("response_format", "json_object")
     system_prompt: str = _pgd.get(
         "system_prompt",

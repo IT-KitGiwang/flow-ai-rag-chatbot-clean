@@ -146,8 +146,8 @@ class GuardianService:
             tc.provider = config.provider
             tc.model = config.model
             tc.temperature = config.temperature
-            tc.max_tokens = 20
-            tc.timeout_seconds = 4
+            tc.max_tokens = getattr(config, 'max_tokens', 50)
+            tc.timeout_seconds = getattr(config, 'timeout_seconds', 5)
 
             output = GuardianService._call_llm_api(
                 config_section=tc,

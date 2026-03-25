@@ -75,6 +75,9 @@ def _create_initial_state(
         # ── Response ──
         "final_response": "",
         "response_source": "",
+
+        # ── Form Node: Ghost History ──
+        "form_history_summary": "",
     }
 
 
@@ -100,7 +103,7 @@ def _format_result(state: dict, elapsed: float) -> dict:
         blocked = True
         blocked_reason = state.get("contextual_guard_message", "")
 
-    return {
+    result = {
         "response": state.get("final_response", ""),
         "source": state.get("response_source", ""),
         "intent": "BLOCKED" if blocked else state.get("intent", ""),
@@ -109,6 +112,13 @@ def _format_result(state: dict, elapsed: float) -> dict:
         "blocked_reason": blocked_reason,
         "elapsed_seconds": round(elapsed, 3),
     }
+
+    # Ghost History: nếu là form, trả câu tóm tắt để Frontend lưu thay vì nội dung đầy đủ
+    form_summary = state.get("form_history_summary", "")
+    if form_summary:
+        result["history_content"] = form_summary
+
+    return result
 
 
 # ══════════════════════════════════════════════════════════

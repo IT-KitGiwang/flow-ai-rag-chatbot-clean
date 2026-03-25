@@ -1,13 +1,11 @@
 """
 Form Drafter — Sinh file Markdown mẫu đơn cuối cùng bằng LLM.
 
-CHIẾN LƯỢC MỚI (Template-Driven):
-  1. Đọc template gốc (file .md) → Đây là "khuôn" chính xác, có đúng tên đơn + đúng field.
-  2. Trích xuất thông tin user đã cung cấp → Dạng key-value tự do.
-  3. Prompt LLM: "Điền thông tin user vào template, giữ nguyên cấu trúc template,
-     field nào user chưa cung cấp thì giữ nguyên placeholder (___)"
-
-  → LLM KHÔNG ĐƯỢC bịa thêm field, KHÔNG ĐƯỢC đổi tên mẫu đơn.
+HAI CHẾ ĐỘ:
+  CHẾ ĐỘ 1 (Có template): Bám sát template gốc, điền thông tin user vào.
+  CHẾ ĐỘ 2 (Không template): Truyền standalone_query cho Gemini Flash,
+    AI tự soạn đơn hành chính phù hợp với yêu cầu người dùng.
+    Kèm disclaimer "Đây chỉ là mẫu tham khảo".
 """
 
 import time
@@ -19,9 +17,23 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# ── Câu disclaimer khi KHÔNG có template chuẩn ──
+_NO_TEMPLATE_DISCLAIMER = (
+    "\n\n---\n"
+    "⚠️ **Lưu ý:** Hiện tại hệ thống chưa được cung cấp mẫu đơn chuẩn cho loại yêu cầu này. "
+    "Đây chỉ là **mẫu tham khảo** được soạn tự động dựa trên yêu cầu của bạn. "
+    "**Bạn hãy đọc kỹ và chỉnh sửa nội dung** cho phù hợp trước khi nộp. "
+    "Để có mẫu đơn chính thức, vui lòng liên hệ Phòng Đào tạo hoặc truy cập cổng thông tin sinh viên UFM."
+)
+
 
 def _load_template_content(filename: str) -> tuple[str, str]:
-    """Đọc file biểu mẫu markdown trên ổ đĩa. Trả về (metadata, template_content)."""
+    """
+    Đọc file biểu mẫu markdown trên ổ đĩa.
+    
+    Luôn strip YAML frontmatter (---...---) ra khỏi nội dung đơn.
+    Trả về (metadata_text, template_body).
+    """
     if not filename:
         return "", ""
 
@@ -37,10 +49,23 @@ def _load_template_content(filename: str) -> tuple[str, str]:
     try:
         with open(template_path, "r", encoding="utf-8") as f:
             content = f.read()
-            if "-start-" in content:
-                parts = content.split("-start-", 1)
-                return parts[0].strip(), parts[1].strip()
-            return "", content.strip()
+
+        metadata = ""
+        body = content
+
+        # Bước 1: Strip YAML frontmatter (---...---)
+        if content.lstrip().startswith("---"):
+            parts = content.split("---", 2)
+            if len(parts) >= 3:
+                metadata = parts[1].strip()   # YAML metadata (chỉ dùng nội bộ)
+                body = parts[2].strip()        # Nội dung sau frontmatter
+
+        # Bước 2: Nếu có marker -start-, chỉ lấy phần sau
+        if "-start-" in body:
+            body = body.split("-start-", 1)[1].strip()
+
+        return metadata, body
+
     except Exception as e:
         logger.warning("Form Drafter - Khong the doc file mau %s: %s", template_path, e)
         return "", ""
@@ -49,11 +74,6 @@ def _load_template_content(filename: str) -> tuple[str, str]:
 def _build_extracted_info_block(extracted_fields: dict) -> str:
     """
     Xây dựng block thông tin user đã cung cấp — dạng đơn giản, liệt kê key-value.
-    
-    VD:
-        THÔNG TIN NGƯỜI DÙNG ĐÃ CUNG CẤP (ĐIỀN NGUYÊN VĂN VÀO MẪU ĐƠN):
-        - Họ tên: Nguyễn Văn A
-        - Ngành dự tuyển: Quản trị Kinh doanh
     """
     if not extracted_fields:
         return "THÔNG TIN NGƯỜI DÙNG: Chưa cung cấp thông tin cá nhân nào.\n"
@@ -61,7 +81,6 @@ def _build_extracted_info_block(extracted_fields: dict) -> str:
     lines = []
     for key, val in extracted_fields.items():
         if val:
-            # Chuyển key từ snake_case sang label đẹp hơn
             label = key.replace("_", " ").capitalize()
             lines.append(f"- {label}: {val}")
 
@@ -73,11 +92,13 @@ def _build_extracted_info_block(extracted_fields: dict) -> str:
     return result
 
 
-def generate_form(form_metadata: dict, extracted_fields: dict) -> str:
+def generate_form(form_metadata: dict, extracted_fields: dict, standalone_query: str = "") -> str:
     """
-    Soạn thảo văn bản hành chính dựa trên template gốc và thông tin người dùng.
-    
-    Template-Driven: LLM phải bám sát template, KHÔNG được bịa field hay đổi tên đơn.
+    Soạn thảo văn bản hành chính.
+
+    Chế độ 1 (Có template): Bám sát template, dùng temperature từ config (0.4).
+    Chế độ 2 (Không template): Gemini Flash tự soạn từ standalone_query,
+        dùng temperature 0.3, kèm disclaimer.
     """
     start_time = time.time()
 
@@ -86,13 +107,10 @@ def generate_form(form_metadata: dict, extracted_fields: dict) -> str:
 
     # ── Đọc nội dung mẫu ──
     metadata, template_content = _load_template_content(template_file)
+    has_template = bool(template_content)
 
     if not template_content:
-        template_content = (
-            f"[Không tìm thấy file mẫu cho \"{form_name}\". "
-            f"Vui lòng soạn đơn hành chính với tiêu đề \"{form_name}\" "
-            f"theo đúng chuẩn văn phong hành chính nhà nước.]"
-        )
+        template_content = ""
 
     # ── Xây dựng block thông tin user ──
     info_str = _build_extracted_info_block(extracted_fields)
@@ -107,12 +125,22 @@ def generate_form(form_metadata: dict, extracted_fields: dict) -> str:
         template_content=template_content,
         extracted_info=info_str,
         form_name=form_name,
+        standalone_query=standalone_query,
+        has_template=has_template,
     )
+
+    # ── Chọn Temperature theo chế độ ──
+    if has_template:
+        # Có template → dùng config gốc (0.4)
+        drafter_temp = form_cfg.settings.drafter_temperature
+    else:
+        # Không template → dùng config riêng (0.3)
+        drafter_temp = form_cfg.settings.drafter_temperature_no_template
 
     class _DrafterConfig:
         model = form_cfg.settings.drafter_model
         provider = form_cfg.settings.provider
-        temperature = form_cfg.settings.drafter_temperature
+        temperature = drafter_temp
         max_tokens = form_cfg.settings.drafter_max_tokens
         timeout_seconds = form_cfg.settings.drafter_timeout
 
@@ -125,7 +153,17 @@ def generate_form(form_metadata: dict, extracted_fields: dict) -> str:
         )
 
         elapsed = time.time() - start_time
-        logger.info("Form Drafter [%.3fs] %d ky tu sinh ra", elapsed, len(draft))
+
+        # ── Kèm disclaimer nếu không có template chuẩn ──
+        if not has_template:
+            draft = draft.strip() + _NO_TEMPLATE_DISCLAIMER
+            logger.info(
+                "Form Drafter [%.3fs] NO TEMPLATE — AI soạn từ query: '%s' → %d ký tự",
+                elapsed, standalone_query[:60], len(draft),
+            )
+        else:
+            logger.info("Form Drafter [%.3fs] TEMPLATE OK → %d ký tự", elapsed, len(draft))
+
         return draft.strip()
 
     except Exception as e:

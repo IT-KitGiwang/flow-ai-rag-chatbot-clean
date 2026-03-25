@@ -8,10 +8,6 @@ program_level: thac_si
 academic_year: "2026"
 keywords: [thạc sĩ, cao học, tuyển sinh]
 ---
-# THÔNG BÁO
-## Về việc tuyển sinh trình độ thạc sĩ đợt 1 năm 2026
-# **GIẤY CAM ĐOAN**
--start-
 **CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM**
 **<u>Độc lập – Tự do – Hạnh phúc</u>**
 *Tp.HCM, ngày ___ tháng ___ năm 20___ *

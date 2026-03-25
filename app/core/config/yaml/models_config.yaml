@@ -22,9 +22,9 @@
 long_query_summarizer:
   provider: "openrouter"
   model: "google/gemini-2.5-flash-lite"
-  temperature: 0.0
+  temperature: 0.2
   max_tokens: 500
-  timeout_seconds: 13
+  timeout_seconds: 6
   fallbacks:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"
@@ -36,7 +36,7 @@ long_query_summarizer:
 prompt_guard_fast:
   provider: "groq"
   model: "meta-llama/llama-prompt-guard-2-86m"
-  max_tokens_per_chunk: 512
+  max_tokens_per_chunk: 10
   score_threshold: 0.88
   fallbacks:
     - provider: "openrouter"
@@ -50,7 +50,7 @@ query_reformulation:
   provider: "openrouter"
   model: "google/gemini-2.0-flash-001"
   temperature: 0.1
-  max_tokens: 500
+  max_tokens: 100
   timeout_seconds: 8
   skip_if_no_history: true
   fallbacks:
@@ -59,9 +59,10 @@ query_reformulation:
 
 auto_summarize:
   provider: "openrouter"
+  temperature: 0.0
   model: "google/gemini-2.5-flash"
-  max_tokens: 440
-  timeout_seconds: 8
+  max_tokens: 140
+  timeout_seconds: 4
 
 
 # ══════════════════════════════════════════════════════════════
@@ -69,7 +70,7 @@ auto_summarize:
 # ══════════════════════════════════════════════════════════════
 prompt_guard_deep:
   provider: "openrouter"
-  model: "google/gemini-2.0-flash-001"
+  model: "google/gemini-2.5-flash"
   temperature: 0.0
   response_format: "json_object"
   fallbacks: []
@@ -80,9 +81,9 @@ prompt_guard_deep:
 # ══════════════════════════════════════════════════════════════
 multi_query:
   provider: "openrouter"
-  model: "google/gemini-2.5-flash-lite"
-  temperature: 0.4
-  max_tokens: 380
+  model: "google/gemini-2.5-flash"
+  temperature: 0.5
+  max_tokens: 250
   timeout_seconds: 8
   num_variants: 3
   merge_strategy: "rrf"
@@ -135,7 +136,7 @@ context_evaluator:
   provider: "openrouter"
   model: "google/gemini-2.5-flash"
   temperature: 0.0
-  max_tokens: 4000
+  max_tokens: 20
   timeout_seconds: 8
   fallbacks:
     - provider: "openrouter"
@@ -169,7 +170,7 @@ pr_query:
   provider: "openrouter"
   model: "google/gemini-2.5-flash"
   temperature: 0.4
-  max_tokens: 350
+  max_tokens: 150
   timeout_seconds: 10
   fallbacks:
     - provider: "openrouter"
@@ -180,7 +181,7 @@ ufm_query:
   provider: "openrouter"
   model: "google/gemini-2.5-flash"
   temperature: 0.2
-  max_tokens: 350
+  max_tokens: 150
   timeout_seconds: 10
   fallbacks:
     - provider: "openrouter"
@@ -194,8 +195,8 @@ web_search:
   enabled: false        # ← Đổi thành false để tắt internet search cho production
   provider: "google"
   model: "gemini-2.5-flash"
-  temperature: 0.1
-  max_tokens: 1500
+  temperature: 0.0
+  max_tokens: 2000
   timeout_seconds: 20
   ufm_domains:
     - "ufm.edu.vn"
@@ -251,7 +252,7 @@ sanitizer:
   provider: "openrouter"
   model: "google/gemini-2.5-flash"
   temperature: 0.0
-  max_tokens: 500
+  max_tokens: 250
   timeout_seconds: 10
   max_loops: 1
   fallbacks:
@@ -281,19 +282,31 @@ care:
 
 
 # ══════════════════════════════════════════════════════════════
-# ❿ FORM NODE — Trích xuất thông tin & soạn mẫu đơn
+# ❿ FORM NODE — Pipeline 3 bước: Selector → Extractor → Drafter
+#    Selector:  Gemini 001 chọn mẫu đơn theo title metadata
+#    Extractor: Gemini Flash trích xuất thông tin cá nhân từ chat
+#    Drafter:   Gemini Flash soạn văn bản hành chính
 # ══════════════════════════════════════════════════════════════
 form:
   provider: "openrouter"
+  # Bước 1: LLM chọn 1-3 mẫu đơn phù hợp từ metadata title
+  selector:
+    model: "google/gemini-2.0-flash-001"
+    temperature: 0.0
+    max_tokens: 200           # Đủ cho JSON 3 items
+    timeout_seconds: 5
+  # Bước 2: Trích xuất thông tin cá nhân từ lịch sử chat
   extractor:
     model: "google/gemini-2.5-flash"
     temperature: 0.0
-    max_tokens: 900
+    max_tokens: 800
     timeout_seconds: 10
+  # Bước 3: Soạn thảo văn bản hành chính
   drafter:
     model: "google/gemini-2.5-flash"
-    temperature: 0.3
-    max_tokens: 5000
+    temperature: 0.4               # Có template → bám sát
+    temperature_no_template: 0.3   # Không template → sáng tạo vừa đủ
+    max_tokens: 4000
     timeout_seconds: 20
   fallbacks:
     - provider: "openrouter"

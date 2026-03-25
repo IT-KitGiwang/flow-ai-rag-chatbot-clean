@@ -205,6 +205,9 @@ class GraphState(TypedDict, total=False):
     final_response: str
     response_source: str               # "fast_scan", "contextual_guard", "cache",
                                        # "rag", "form", "pr", "care", "greeting"
+    form_history_summary: str           # Ghost History: câu tóm tắt cho chat_history
+                                       # Frontend lưu câu này thay vì toàn bộ nội dung đơn
+                                       # Chỉ có giá trị khi intent_action = "PROCEED_FORM"
 
     # ════════════════════════════════════════════════════════
     # 11. ROUTING

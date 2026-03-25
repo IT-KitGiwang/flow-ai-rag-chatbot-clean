@@ -1,9 +1,12 @@
 """
 Cấu trúc Pydantic cho Form Config.
-Đọc file app/core/config/yaml/form_config.yaml.
+
+- FormSettings: Đọc model config từ models_config.yaml (section "form:")
+- FormFieldDef: Định nghĩa key trích xuất (từ form_config.yaml)
+- form_cfg: Singleton instance
 """
 
-from typing import List, Optional
+from typing import List
 from pydantic import BaseModel
 import yaml
 import os
@@ -16,40 +19,38 @@ _fm_settings = models_yaml_data.get("form", {})
 
 
 class FormSettings(BaseModel):
+    # Selector (Gemini 001 chọn mẫu đơn)
+    selector_model: str = _fm_settings.get("selector", {}).get("model", "google/gemini-2.0-flash-001")
+    selector_temperature: float = _fm_settings.get("selector", {}).get("temperature", 0.0)
+    selector_max_tokens: int = _fm_settings.get("selector", {}).get("max_tokens", 50)
+    selector_timeout: int = _fm_settings.get("selector", {}).get("timeout_seconds", 5)
+
+    # Extractor (trích xuất thông tin cá nhân)
     extractor_model: str = _fm_settings.get("extractor", {}).get("model", "google/gemini-2.5-flash")
-    extractor_temperature: float = _fm_settings.get("extractor", {}).get("temperature", 0.1)
-    extractor_max_tokens: int = _fm_settings.get("extractor", {}).get("max_tokens", 500)
+    extractor_temperature: float = _fm_settings.get("extractor", {}).get("temperature", 0.0)
+    extractor_max_tokens: int = _fm_settings.get("extractor", {}).get("max_tokens", 800)
     extractor_timeout: int = _fm_settings.get("extractor", {}).get("timeout_seconds", 10)
 
+    # Drafter (soạn thảo văn bản)
     drafter_model: str = _fm_settings.get("drafter", {}).get("model", "google/gemini-2.5-flash")
     drafter_temperature: float = _fm_settings.get("drafter", {}).get("temperature", 0.4)
-    drafter_max_tokens: int = _fm_settings.get("drafter", {}).get("max_tokens", 2000)
+    drafter_temperature_no_template: float = _fm_settings.get("drafter", {}).get("temperature_no_template", 0.3)
+    drafter_max_tokens: int = _fm_settings.get("drafter", {}).get("max_tokens", 4000)
     drafter_timeout: int = _fm_settings.get("drafter", {}).get("timeout_seconds", 20)
 
     provider: str = _fm_settings.get("provider", "openrouter")
 
 
 class FormFieldDef(BaseModel):
+    """Định nghĩa 1 key trích xuất cho Extractor."""
     key: str
     label: str
-    field_type: str                    # "personal" | "content"
-    placeholder: str = ""
     extract_hint: str = ""
-    reference_hint: str = ""           # Chỉ dùng cho field_type="content"
-
-
-class FormTemplateDef(BaseModel):
-    id: str
-    name: str
-    description: str
-    keywords: List[str]
-    template_file: Optional[str] = None
 
 
 class FormConfig(BaseModel):
     settings: FormSettings
     fields: List[FormFieldDef]
-    forms: List[FormTemplateDef]
 
     @classmethod
     def load(cls, yaml_path: str) -> "FormConfig":
@@ -58,15 +59,11 @@ class FormConfig(BaseModel):
         with open(yaml_path, "r", encoding="utf-8") as file:
             data = yaml.safe_load(file) or {}
 
-        # Bỏ qua 'settings' từ form_config.yaml (models đã chuyển sang models_config.yaml)
-        # Chỉ load fields và forms.
         fields = data.get("fields", [])
-        forms = data.get("forms", [])
 
         return cls(
-            settings=FormSettings(), # Luôn lấy từ models_config.yaml
+            settings=FormSettings(),
             fields=[FormFieldDef(**f) for f in fields],
-            forms=[FormTemplateDef(**frm) for frm in forms],
         )
 
 
@@ -82,5 +79,4 @@ except Exception as e:
     form_cfg = FormConfig(
         settings=FormSettings(),
         fields=[],
-        forms=[],
     )

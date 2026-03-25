@@ -19,6 +19,7 @@ class AutoSummarizeConfig(BaseModel):
     target_length: int = _mem.get("auto_summarize", {}).get("target_length", 120)
     provider: str = _auto_sum_model.get("provider", "openrouter")
     model: str = _auto_sum_model.get("model", "google/gemini-2.0-flash-001")
+    temperature: float = _auto_sum_model.get("temperature", 0.0)
     max_tokens: int = _auto_sum_model.get("max_tokens", 80)
     timeout_seconds: int = _auto_sum_model.get("timeout_seconds", 6)
 

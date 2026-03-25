@@ -8,10 +8,6 @@ program_level: thac_si
 academic_year: "2026"
 keywords: [thạc sĩ, cao học, tuyển sinh]
 ---
-# THÔNG BÁO
-## Về việc tuyển sinh trình độ thạc sĩ đợt 1 năm 2026
-Phụ lục 4 - ĐƠN DỰ TUYỂN ĐÀO TẠO TRÌNH ĐỘ THẠC SĨ
--start-
 **CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM**
 **Độc lập – Tự do – Hạnh phúc**
 # ĐƠN DỰ TUYỂN ĐÀO TẠO TRÌNH ĐỘ THẠC SĨ

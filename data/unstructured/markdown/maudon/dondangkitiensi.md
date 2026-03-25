@@ -8,10 +8,6 @@ program_level: tien_si
 academic_year: "2026"
 keywords: [tiến sĩ, NCS, nghiên cứu sinh]
 ---
-# THÔNG BÁO
-## Về việc tuyển sinh trình độ tiến sĩ đợt 1 năm 2026
-## MẪU ĐƠN ĐĂNG KÝ DỰ TUYỂN ĐÀO TẠO TRÌNH ĐỘ TIẾN SĨ
--start-
 BỘ TÀI CHÍNH
 TRƯỜNG ĐẠI HỌC TÀI CHÍNH - MARKETING
 CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM

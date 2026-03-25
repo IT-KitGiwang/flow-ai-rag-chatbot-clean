@@ -19,18 +19,6 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Các key thông tin cá nhân phổ biến để trích xuất
-_COMMON_PERSONAL_KEYS = [
-    "ho_ten", "ngay_sinh", "noi_sinh", "gioi_tinh",
-    "dia_chi", "ho_khau", "so_dien_thoai", "email",
-    "cccd", "cmnd", "dan_toc", "ton_giao",
-    "co_quan", "chuc_vu",
-    "nganh_hoc", "truong_tot_nghiep", "nam_tot_nghiep",
-    "xep_loai_tot_nghiep",
-    "nganh_du_tuyen", "dot_du_tuyen",
-    "ly_do", "nguyen_vong", "thong_tin_bo_sung",
-]
-
 
 def extract_fields(chat_history: list, user_query: str) -> dict:
     """
@@ -50,10 +38,10 @@ def extract_fields(chat_history: list, user_query: str) -> dict:
             context_str += f"{role}: {content}\n"
     context_str += f"Người dùng (hiện tại): {user_query}\n"
 
-    # ── Xây dựng danh sách fields hint ──
+    # ── Xây dựng danh sách fields hint từ config ──
     fields_hint = "\n".join(
-        f"- {k}" for k in _COMMON_PERSONAL_KEYS
-    )
+        f"- {f.key} ({f.extract_hint})" for f in form_cfg.fields
+    ) if form_cfg.fields else "- ho_ten, ngay_sinh, dia_chi, so_dien_thoai, email, cccd, nganh_hoc, ly_do"
 
     # ── Render System Prompt ──
     sys_prompt_raw = prompt_manager.get_system("form_extractor")
