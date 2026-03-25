@@ -137,7 +137,6 @@ def rag_node(state: GraphState) -> GraphState:
 
         # ════════════════════════════════════════════════════════
         # ★ CONTEXT CURATOR — Gemini 2.5 Flash lọc ngữ cảnh
-        # Thay thế confidence_gate (cosine threshold) cũ
         # ════════════════════════════════════════════════════════
         if raw_context:
             curated_context = _curate_context(standalone_query, raw_context)
@@ -155,7 +154,6 @@ def rag_node(state: GraphState) -> GraphState:
             **state,
             "rag_context": curated_context,
             "retrieved_chunks": retrieved_chunks,
-            "top1_cosine_score": top1_cosine,
         }
 
     except ImportError as e:

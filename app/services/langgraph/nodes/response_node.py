@@ -88,11 +88,6 @@ def response_node(state: GraphState) -> GraphState:
         }
 
     # ══════════════════════════════════════════════════════════
-    # (Confidence Gate đã được thay thế bằng Context Curator
-    #  ở rag_node — không cần check rag_confidence_failed nữa)
-    # ══════════════════════════════════════════════════════════
-
-    # ══════════════════════════════════════════════════════════
     # NHÁNH B: GENERATE — Gọi Gemini 3.0 Flash sinh câu trả lời
     # ══════════════════════════════════════════════════════════
     config = query_flow_config.main_bot

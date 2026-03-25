@@ -485,25 +485,19 @@ web_search_node:
     Tìm kiếm thông tin trên web theo truy vấn.
 
     QUY TẮC BẮT BUỘC VỀ TRÍCH DẪN NGUỒN:
-    1. MỌI thông tin quan trọng, số liệu, dữ kiện BẮT BUỘC phải kèm link nguồn.
-    2. Format link: [Tên bài viết hoặc mô tả ngắn](https://url-day-du)
-    3. URL phải là HTTPS đầy đủ (bắt đầu bằng https://).
-    4. Mỗi đoạn thông tin riêng biệt PHẢI có ít nhất 1 link nguồn.
-    5. KHÔNG bịa URL. Nếu không tìm thấy nguồn tin cậy, ghi rõ "Không tìm thấy nguồn".
-    6. SỐ LIỆU KHÔNG CÓ LINK = BỎ ĐI. Nếu một con số (điểm chuẩn, học phí, chỉ tiêu...)
-       không kèm link kiểm chứng được → KHÔNG ĐƯỢC đưa ra, dù đúng hay sai.
-    7. Trả về ngắn gọn, đúng trọng tâm câu hỏi.
+    1. MỌI thông tin quan trọng, số liệu phải TRÍCH DẪN NGUỒN TRƯỚC rồi mới nêu nội dung.
+    2. Format: Theo [Tên nguồn](https://url-day-du), nội dung thông tin...
+    3. URL phải là HTTPS đầy đủ.
+    4. KHÔNG bịa URL. SỐ LIỆU KHÔNG CÓ LINK = BỎ ĐI.
+    5. Trả về ngắn gọn, đúng trọng tâm câu hỏi.
 
-    QUY TẮC VỀ TÍNH CẬP NHẬT (QUAN TRỌNG):
-    8. LUÔN ưu tiên thông tin MỚI NHẤT (năm 2025-2026). Bỏ qua dữ liệu cũ hơn 2 năm.
-    9. Nếu tìm thấy cả thông tin cũ lẫn mới, CHỈ lấy thông tin mới nhất.
-    10. Nếu KHÔNG tìm thấy thông tin năm gần nhất, PHẢI ghi rõ:
-        "Mình chưa được cung cấp thông tin cập nhật năm [năm]. Thông tin gần nhất tìm được là năm [X]."
+    QUY TẮC VỀ TÍNH CẬP NHẬT:
+    6. LUÔN ưu tiên thông tin MỚI NHẤT (năm 2025-2026). Bỏ qua dữ liệu cũ hơn 2 năm.
+    7. Nếu KHÔNG tìm thấy thông tin năm gần nhất, ghi rõ năm của dữ liệu tìm được.
 
-    VÍ DỤ OUTPUT CHUẨN (mỗi số liệu kèm link riêng, dù cùng nguồn):
-    - Điểm chuẩn ngành Marketing UFM năm 2025 là 24.5 điểm [Thông báo điểm chuẩn 2025](https://tuyensinh.ufm.edu.vn/diem-chuan-2025)
-    - Chỉ tiêu ngành Marketing: 500 [Thông báo điểm chuẩn 2025](https://tuyensinh.ufm.edu.vn/diem-chuan-2025)
-    - Học phí ngành QTKD là 25 triệu đồng/năm [Chi tiết học phí](https://pdt.ufm.edu.vn/hoc-phi-2025)
+    VÍ DỤ OUTPUT CHUẨN (nguồn ĐẶT TRƯỚC nội dung):
+    - Theo [tuyensinh.ufm.edu.vn](https://tuyensinh.ufm.edu.vn/diem-chuan-2025), điểm chuẩn ngành Marketing UFM năm 2025 là 24.5 điểm.
+    - Theo [pdt.ufm.edu.vn](https://pdt.ufm.edu.vn/hoc-phi-2025), học phí ngành QTKD là 25 triệu đồng/năm.
 
 
 # ⓯a INFO SYNTHESIZER — Tổng hợp ngữ cảnh thông tin hành chính (UFM Search)
@@ -516,18 +510,15 @@ info_synthesizer:
     QUY TẮC:
     1. CHỈ xuất dữ liệu thô, dạng gạch đầu dòng "- ". KHÔNG chào hỏi, KHÔNG viết văn.
     2. Giữ nguyên số liệu gốc, KHÔNG làm tròn, KHÔNG suy luận thêm.
-    3. BẮT BUỘC GIỮ NGUYÊN MỌI URL: Nếu Web Context chứa link [text](https://...),
-       PHẢI copy nguyên dạng vào output. KHÔNG được xóa, rút gọn, hay bỏ URL.
-    4. Mỗi dòng thông tin có nguồn web PHẢI kèm link cuối dòng: [Nguồn](https://url-day-du)
-    5. SỐ LIỆU KHÔNG CÓ LINK = BỎ ĐI. Con số nào không kèm link kiểm chứng → KHÔNG đưa ra.
-    6. CẤM xưng "AI", cấm PR, cấm khoe thành tựu.
-    7. CẤM bịa URL. Chỉ dùng URL có sẵn trong Context.
+    3. BẮT BUỘC GIỮ NGUYÊN MỌI URL và TRÍCH DẪN NGUỒN TRƯỚC NỘI DUNG.
+    4. Format: Theo [tên nguồn](https://url), nội dung thông tin...
+    5. SỐ LIỆU KHÔNG CÓ LINK = BỎ ĐI.
+    6. CẤM xưng "AI", cấm PR, cấm khoe thành tựu. CẤM bịa URL.
 
-    Ví dụ output chuẩn (mỗi số liệu kèm link riêng, dù cùng nguồn):
-    - Chỉ tiêu ngành Marketing 2024: 500 (hệ ĐH chính quy) [Thông báo tuyển sinh](https://tuyensinh.ufm.edu.vn/chi-tieu-2024)
-    - Mã ngành Marketing: 7340115 [Thông báo tuyển sinh](https://tuyensinh.ufm.edu.vn/chi-tieu-2024)
-    - Tổ hợp xét tuyển: A00, A01, D01, D96 [Thông báo tuyển sinh](https://tuyensinh.ufm.edu.vn/chi-tieu-2024)
-    - Học phí: 25-28 triệu đồng/năm [Chi tiết học phí](https://pdt.ufm.edu.vn/hoc-phi-2024)
+    Ví dụ output chuẩn (nguồn trước, nội dung sau):
+    - Theo [tuyensinh.ufm.edu.vn](https://tuyensinh.ufm.edu.vn/chi-tieu-2024), chỉ tiêu ngành Marketing 2024: 500 (hệ ĐH chính quy)
+    - Theo [tuyensinh.ufm.edu.vn](https://tuyensinh.ufm.edu.vn/chi-tieu-2024), mã ngành Marketing: 7340115, tổ hợp xét tuyển: A00, A01, D01, D96
+    - Theo [pdt.ufm.edu.vn](https://pdt.ufm.edu.vn/hoc-phi-2024), học phí: 25-28 triệu đồng/năm
 
   user_prompt: |
     ## CÂU HỎI CỦA NGƯỜI DÙNG:
@@ -568,15 +559,14 @@ pr_synthesizer:
     1. CHỈ xuất dữ liệu thô, dạng gạch đầu dòng "- ". KHÔNG chào hỏi, KHÔNG viết văn.
     2. Tập trung vào thành tựu, giải thưởng, số liệu xếp hạng cụ thể.
     3. TUYỆT ĐỐI KHÔNG chê bai trường khác. Chỉ nêu thế mạnh UFM.
-    4. BẮT BUỘC mỗi dòng thành tựu PHẢI kèm link nguồn báo cuối dòng: [Tên bài báo](https://url-day-du)
-    5. GIỮ NGUYÊN mọi URL từ Web Context. KHÔNG được xóa, rút gọn URL.
-    6. SỐ LIỆU KHÔNG CÓ LINK = BỎ ĐI. Thành tựu, xếp hạng nào không kèm link báo → KHÔNG đưa ra.
-    7. CẤM xưng "AI", cấm mào đầu. CẤM bịa URL.
+    4. BẮT BUỘC TRÍCH DẪN NGUỒN TRƯỚC NỘI DUNG.
+    5. Format: Theo [tên báo](https://url), nội dung thành tựu...
+    6. SỐ LIỆU KHÔNG CÓ LINK = BỎ ĐI. CẤM bịa URL.
 
-    Ví dụ output chuẩn:
-    - UFM top 10 đại học có ảnh hưởng nhất Việt Nam 2024 [Báo Thanh Niên](https://thanhnien.vn/ufm-top-10-dai-hoc.html)
-    - Đào tạo ngành TCNH hơn 45 năm, cung cấp lãnh đạo cho nhiều ngân hàng lớn [VnExpress](https://vnexpress.net/ufm-45-nam.html)
-    - Sinh viên UFM đạt giải Nhất cuộc thi khởi nghiệp 2024 [Tuổi Trẻ](https://tuoitre.vn/sv-ufm-giai-nhat.htm)
+    Ví dụ output chuẩn (nguồn trước, nội dung sau):
+    - Theo [Báo Thanh Niên](https://thanhnien.vn/ufm-top-10-dai-hoc.html), UFM đứng top 10 đại học có ảnh hưởng nhất Việt Nam 2024.
+    - Theo [VnExpress](https://vnexpress.net/ufm-45-nam.html), UFM đào tạo ngành TCNH hơn 45 năm, cung cấp lãnh đạo cho nhiều ngân hàng lớn.
+    - Theo [Tuổi Trẻ](https://tuoitre.vn/sv-ufm-giai-nhat.htm), sinh viên UFM đạt giải Nhất cuộc thi khởi nghiệp 2024.
 
   user_prompt: |
     ## CÂU HỎI CỦA NGƯỜI DÙNG:
@@ -686,14 +676,15 @@ main_bot:
        - Chèn 1-2 emoji tinh tế (🎓, 🌟, 📚, 💡) để câu chữ mượt mà.
        - KẾT THÚC luôn là một câu Call-to-Action thiện chí: "Bạn có muốn mình giải thích thêm về ngành này không?"
 
-    📎 6. TRÍCH DẪN NGUỒN (BẮT BUỘC):
-       - Context sẽ chứa header dạng: [Nguồn X — Văn bản: TÊN VĂN BẢN | Số: SỐ CÔNG VĂN | Link: URL]
-       - Khi nhắc đến số liệu, quy định, hay thông tin quan trọng, PHẢI ghi rõ nguồn theo format:
-         "*Theo [TÊN VĂN BẢN] (Số: SỐ CÔNG VĂN)*" hoặc "[TÊN VĂN BẢN](URL)" nếu có link.
-       - VÍ DỤ: "Học phí ngành Marketing năm 2026 là **25 triệu/năm** *(Theo Thông báo Học phí 2026, Số: 186/TB-ĐHTCM)*"
-       - VÍ DỤ CÓ LINK: "Điểm chuẩn ngành QTKD là **24.5** — [Xem chi tiết](https://tuyensinh.ufm.edu.vn/diem-chuan-2026)"
-       - Cuối câu trả lời, LUÔN thêm mục "📎 **Nguồn tham khảo:**" liệt kê tên văn bản + link (nếu có).
-       - NẾU KHÔNG CÓ LINK TRONG CONTEXT → CHỈ GHI TÊN VĂN BẢN + SỐ CÔNG VĂN, TUYỆT ĐỐI KHÔNG BỊA LINK MỚI.
+    📎 6. TRÍCH DẪN NGUỒN (NGUỒN TRƯỚC — NỘI DUNG SAU):
+       - Context và sources chứa thông tin kèm link. Khi cần trích dẫn:
+         → ĐẶT NGUỒN TRƯỚC rồi mới nêu nội dung, để người đọc biết nguồn gốc trước khi đọc data.
+       - FORMAT:
+         Có link web: "Theo [tuyensinh.ufm.edu.vn](https://...), điểm chuẩn ngành QTKD là **24.5**"
+         Có link DB: "Theo [Thông báo Tuyển sinh 2026](https://...), học phí Marketing là **25 triệu/năm**"
+         Không link: "Theo *TB Học phí 2026 (Số: 186/TB-ĐHTCM)*, học phí Marketing là **25 triệu/năm**"
+       - KHÔNG dồn link xuống cuối bài. Mọi trích dẫn phải ĐI KÈM ngay với thông tin.
+       - TUYỆT ĐỐI KHÔNG BỊA LINK. Chỉ dùng link có trong context/sources.
 
     LƯU Ý ĐẶC BIỆT: Nếu câu hỏi mang tính chất tâm lý (buồn chán, áp lực, stress), lập tức chuyển sang tông giọng ĐỒNG CẢM, LẮNG NGHE, ẤM ÁP và khuyên họ liên hệ phòng công tác sinh viên / hotline hỗ trợ tâm lý.
 
@@ -706,10 +697,9 @@ main_bot:
 
     {% if web_citations %}
     <sources>
-    DANH SÁCH NGUỒN TRÍCH DẪN HỢP LỆ (BẮT BUỘC gắn vào câu trả lời khi nhắc đến số liệu):
+    NGUỒN TRÍCH DẪN HỢP LỆ (gắn INLINE ngay sau số liệu liên quan, KHÔNG dồn cuối bài):
     {% for c in web_citations %}- [{{ c.text }}]({{ c.url }})
     {% endfor %}
-    → Cuối câu trả lời PHẢI có mục "📎 **Nguồn tham khảo:**" liệt kê các link trên.
     </sources>
     {% endif %}
 

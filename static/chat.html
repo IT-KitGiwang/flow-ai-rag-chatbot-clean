@@ -283,7 +283,24 @@ function md(text) {
   if (!text) return '';
   let h = text;
 
-  // Escape HTML
+  // ── Step 1: Protect markdown links TRƯỚC khi escape HTML ──
+  // Extract [text](url) → placeholder, xử lý cuối cùng
+  const links = [];
+  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
+    const idx = links.length;
+    links.push({ text: linkText, url: url });
+    return `⟬LINK${idx}⟭`;
+  });
+
+  // ── Step 2: Protect bare URLs ──
+  const bareUrls = [];
+  h = h.replace(/(https?:\/\/[^\s<>\[\]"']+)/g, (_, url) => {
+    const idx = bareUrls.length;
+    bareUrls.push(url);
+    return `⟬BARE${idx}⟭`;
+  });
+
+  // Escape HTML (safe vì links đã được protect)
   h = h.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   // Code blocks ```lang\n...\n```
@@ -309,9 +326,6 @@ function md(text) {
 
   // HR
   h = h.replace(/^(---|___|\*\*\*)$/gm, '<hr>');
-
-  // Links [text](url)
-  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
   // Tables
   h = h.replace(/^(\|.+\|)\n(\|[\s\-:|]+\|)\n((?:\|.+\|\n?)+)/gm, (_, hdr, sep, body) => {
@@ -345,6 +359,21 @@ function md(text) {
   h = h.replace(/<br>(<pre>)/g,'$1').replace(/(<\/pre>)<br>/g,'$1');
   h = h.replace(/<br>(<blockquote>)/g,'$1').replace(/(<\/blockquote>)<br>/g,'$1');
   h = h.replace(/<br>(<hr>)/g,'$1').replace(/(<hr>)<br>/g,'$1');
+
+  // ── Step 3: Restore links ──
+  // Markdown links → clickable <a> with 🔗 icon
+  h = h.replace(/⟬LINK(\d+)⟭/g, (_, idx) => {
+    const link = links[parseInt(idx)];
+    return `<a href="${link.url}" target="_blank" rel="noopener">${link.text} 🔗</a>`;
+  });
+
+  // Bare URLs → clickable <a>
+  h = h.replace(/⟬BARE(\d+)⟭/g, (_, idx) => {
+    const url = bareUrls[parseInt(idx)];
+    let display;
+    try { display = new URL(url).hostname; } catch { display = url.substring(0, 40); }
+    return `<a href="${url}" target="_blank" rel="noopener">${display} 🔗</a>`;
+  });
 
   return h;
 }

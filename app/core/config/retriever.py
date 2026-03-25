@@ -74,20 +74,6 @@ class RetrieverFilterConfig(BaseModel):
     academic_year: Optional[str] = _fl.get("academic_year", None)
 
 
-# ── Confidence Gate (Ngưỡng tin cậy cho PROCEED_RAG) ──
-_cg = _retriever.get("confidence_gate", {})
-
-class ConfidenceGateConfig(BaseModel):
-    enabled: bool = _cg.get("enabled", True)
-    min_top1_cosine: float = Field(
-        default=_cg.get("min_top1_cosine", 0.85),
-        ge=0.0, le=1.0
-    )
-    fallback_message: str = _cg.get(
-        "fallback_message",
-        "Xin lỗi bạn, mình chưa tìm thấy thông tin chính xác cho câu hỏi này. "
-        "Bạn có thể thử hỏi cụ thể hơn được không?"
-    )
 
 
 # ── Metadata Filter ──
@@ -105,6 +91,5 @@ class RetrieverConfig(BaseModel):
     rrf: RRFConfig = RRFConfig()
     parent_retrieval: ParentRetrievalConfig = ParentRetrievalConfig()
     metadata_filter: MetadataFilterConfig = MetadataFilterConfig()
-    confidence_gate: ConfidenceGateConfig = ConfidenceGateConfig()
     db: RetrieverDBConfig = RetrieverDBConfig()
     filters: RetrieverFilterConfig = RetrieverFilterConfig()

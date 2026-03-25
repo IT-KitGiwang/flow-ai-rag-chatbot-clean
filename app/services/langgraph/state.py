@@ -172,7 +172,6 @@ class GraphState(TypedDict, total=False):
     # ════════════════════════════════════════════════════════
     retrieved_chunks: Optional[list]
     rag_context: Optional[str]                 # Context ĐÃ CURATE (chỉ info liên quan)
-    top1_cosine_score: Optional[float]         # Cosine score top1 (monitoring only)
 
     # ════════════════════════════════════════════════════════
     # 9b. PROCEED RAG SEARCH (Web-Augmented RAG Pipeline)

@@ -220,22 +220,178 @@ def _call_gemini_native_with_search(
         grounding = candidates[0].get("groundingMetadata", {})
         grounding_chunks = grounding.get("groundingChunks", [])
         seen_urls = set()
+
         for chunk in grounding_chunks:
             web = chunk.get("web", {})
             chunk_url = web.get("uri", "")
             chunk_title = web.get("title", "").strip()
-            if chunk_url and chunk_url not in seen_urls:
-                citations.append({
-                    "text": chunk_title or chunk_url,
-                    "url": chunk_url,
-                })
-                seen_urls.add(chunk_url)
+            if not chunk_url or chunk_url in seen_urls:
+                continue
 
-    # Nếu groundingMetadata không có citations, thử regex fallback
+            # Google trả redirect URLs tạm thời → follow để lấy URL thật
+            real_url = _resolve_google_redirect(chunk_url)
+            if real_url and real_url not in seen_urls:
+                citations.append({
+                    "text": chunk_title or real_url,
+                    "url": real_url,
+                })
+                seen_urls.add(real_url)
+
+        # Fallback: extract URLs từ searchEntryPoint HTML
+        if not citations:
+            entry_html = grounding.get("searchEntryPoint", {}).get("renderedContent", "")
+            if entry_html:
+                html_citations = _extract_urls_from_html(entry_html)
+                for c in html_citations:
+                    if c["url"] not in seen_urls:
+                        citations.append(c)
+                        seen_urls.add(c["url"])
+
+    # Regex fallback nếu vẫn chưa có
     if not citations:
         citations = _extract_citations_from_text(raw_text)
 
+    # ── Validate URLs: loại bỏ link chết ──
+    citations = _validate_citations(citations)
+
     return raw_text, citations
+
+
+# ══════════════════════════════════════════════════════════
+# GOOGLE REDIRECT RESOLVER — Follow redirect lấy URL thật
+# ══════════════════════════════════════════════════════════
+
+_GOOGLE_REDIRECT_HOSTS = (
+    "vertexaisearch.cloud.google.com",
+    "www.google.com/url",
+)
+
+
+def _resolve_google_redirect(url: str, timeout: int = 4) -> str | None:
+    """
+    Follow Google grounding redirect URL → trả về URL đích thực.
+    Trả None nếu:
+      - URL hết hạn (404)
+      - Không redirect được
+      - URL vẫn là Google redirect sau khi follow
+    """
+    # URL bình thường (không phải redirect) → giữ nguyên
+    is_redirect = any(host in url for host in _GOOGLE_REDIRECT_HOSTS)
+    if not is_redirect:
+        return url
+
+    try:
+        req = urllib.request.Request(url, method="HEAD")
+        req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UFM-Bot/1.0")
+
+        # Chặn auto-follow để lấy Location header
+        class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None  # Không follow, trả Location thay thế
+
+        opener = urllib.request.build_opener(NoRedirectHandler)
+        try:
+            opener.open(req, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            if e.code in (301, 302, 303, 307, 308):
+                final_url = e.headers.get("Location", "")
+                if final_url and "vertexaisearch.cloud.google.com" not in final_url:
+                    logger.debug("Resolved Google redirect → %s", final_url[:120])
+                    return final_url
+            # 404 = redirect hết hạn
+            logger.debug("Google redirect expired (HTTP %d): %s", e.code, url[:80])
+            return None
+
+    except Exception as e:
+        logger.debug("Cannot resolve Google redirect: %s → %s", url[:80], e)
+
+    return None
+
+
+def _extract_urls_from_html(html: str) -> list:
+    """
+    Extract real URLs từ searchEntryPoint.renderedContent HTML.
+    Tìm tất cả href="https://..." trong HTML.
+    """
+    urls = re.findall(r'href=["\']?(https?://[^\s"\'<>]+)', html)
+    seen = set()
+    results = []
+    for u in urls:
+        # Bỏ Google internal URLs
+        if "google.com" in u or "googleapis.com" in u:
+            continue
+        if u not in seen:
+            # Dùng domain làm title
+            try:
+                from urllib.parse import urlparse
+                domain = urlparse(u).netloc
+            except Exception:
+                domain = u
+            results.append({"text": domain, "url": u})
+            seen.add(u)
+    return results
+
+
+def _validate_citations(citations: list, timeout: int = 3) -> list:
+    """
+    Ping HEAD request song song tất cả URLs.
+    Chỉ giữ lại citations có URL trả HTTP 200-399.
+    Loại bỏ cứng mọi Google redirect URLs còn sót.
+    """
+    if not citations:
+        return []
+
+    # Bước 1: Loại bỏ cứng Google redirect URLs
+    filtered = []
+    for c in citations:
+        url = c.get("url", "")
+        if any(host in url for host in _GOOGLE_REDIRECT_HOSTS):
+            logger.warning("Web Search - Loại Google redirect: %s", url[:80])
+            continue
+        filtered.append(c)
+
+    if not filtered:
+        return []
+
+    # Bước 2: Ping song song
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _ping(citation: dict) -> dict | None:
+        url = citation.get("url", "")
+        if not url:
+            return None
+        try:
+            req = urllib.request.Request(url, method="HEAD")
+            req.add_header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) UFM-Bot/1.0")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if resp.status < 400:
+                    return citation
+        except urllib.error.HTTPError as e:
+            # Một số server trả 405 cho HEAD nhưng GET OK
+            if e.code == 405:
+                return citation
+        except Exception:
+            pass
+        logger.warning("Web Search - Link chết, loại bỏ: %s", url)
+        return None
+
+    valid = []
+    with ThreadPoolExecutor(max_workers=min(len(filtered), 5)) as pool:
+        futures = {pool.submit(_ping, c): c for c in filtered}
+        for future in as_completed(futures):
+            result = future.result()
+            if result is not None:
+                valid.append(result)
+
+    # Giữ nguyên thứ tự gốc
+    url_set = {c["url"] for c in valid}
+    ordered = [c for c in filtered if c["url"] in url_set]
+
+    logger.info(
+        "Web Search - URL validate: %d/%d links sống",
+        len(ordered), len(citations),
+    )
+    return ordered
 
 
 # ══════════════════════════════════════════════════════════
@@ -323,6 +479,7 @@ def web_search_node(state: GraphState) -> GraphState:
         )
 
         citations = _extract_citations_from_text(raw_result)
+        citations = _validate_citations(citations)
         elapsed = time.time() - start_time
         logger.info(
             "Web Search [%.3fs] FALLBACK OK, %d citations, %d chars",

@@ -34,18 +34,7 @@ retriever:
     filter_program_level: true        # Bật/tắt filter bậc học (thac_si/tien_si/dai_hoc)
     filter_program_name: false        # Bật/tắt filter ngành (ILIKE match) — tương lai
 
-  # ── Confidence Gate (Ngưỡng tin cậy cho PROCEED_RAG) ──
-  confidence_gate:
-    enabled: true
-    min_top1_cosine: 0.85             # Top1 cosine phải ≥ 0.85 mới được dùng
-    fallback_message: >
-      Xin lỗi bạn, mình chưa tìm thấy thông tin chính xác cho câu hỏi này
-      trong cơ sở dữ liệu. Bạn thử hỏi cụ thể hơn nhé, ví dụ:
-      "Học phí ngành Marketing năm 2026?" hoặc
-      "Điều kiện xét tuyển Thạc sĩ QTKD?"
-
-  # ── Database Connection (override .env nếu cần) ──
-  # Mặc định đọc từ .env: POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, etc.
+  # ── Database Connection ──
   db:
     pool_min: 1
     pool_max: 5
