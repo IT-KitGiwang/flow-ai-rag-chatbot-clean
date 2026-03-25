@@ -188,41 +188,45 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
     }
 
     # ══════════════════════════════════════════════════════════
-    # Bước 0: SELF-RAG EVALUATOR GATE
-    # Chỉ áp dụng khi web_search_enabled=true VÀ nhánh UFM_SEARCH.
-    # Khi web_search tắt → bỏ qua evaluator (không cần đánh giá)
+    # FAST PATH: Web Search TẮT → Trả rag_context thô, KHÔNG
+    # chạy Evaluator / Synthesizer / Sanitizer (tiết kiệm ~1.5s)
+    # ══════════════════════════════════════════════════════════
+    if not web_search_enabled:
+        elapsed = time.time() - pipeline_start
+        logger.info(
+            "RAG Search Pipeline - web_search OFF → trả rag_context thô (%.2fs, %d chars)",
+            elapsed, len(rag_context),
+        )
+        state["final_response"] = rag_context
+        state["response_source"] = "rag_db_only"
+        return state
+
+    # ══════════════════════════════════════════════════════════
+    # Web Search BẬT → Chạy Evaluator Gate bình thường
     # ══════════════════════════════════════════════════════════
     skip_web_search = False
 
-    if web_search_enabled:
-        if action == "PROCEED_RAG_UFM_SEARCH" and rag_context:
-            logger.info("Buoc 0: Self-RAG Evaluator...")
-            is_sufficient = evaluate_rag_context(
-                standalone_query=standalone_query,
-                rag_context=rag_context,
-            )
-
-            if is_sufficient:
-                skip_web_search = True
-                logger.info("EVALUATOR: YES -> DB du, bo qua Web Search")
-            else:
-                logger.info("EVALUATOR: NO -> DB thieu, tiep tuc Web Search")
-        elif action in ("PROCEED_RAG_PR_SEARCH", "PROCEED_PR"):
-            logger.info("Buoc 0: Nhanh PR -> LUON chay Web Search")
-        elif not rag_context:
-            logger.info("Buoc 0: Context DB rong -> bat buoc Web Search")
-    else:
-        skip_web_search = True
-        logger.info(
-            "Buoc 0: web_search.enabled=false -> SKIP toan bo internet search. "
-            "Chi dung RAG context lam nguon chinh."
+    if action == "PROCEED_RAG_UFM_SEARCH" and rag_context:
+        logger.info("Buoc 0: Self-RAG Evaluator...")
+        is_sufficient = evaluate_rag_context(
+            standalone_query=standalone_query,
+            rag_context=rag_context,
         )
+
+        if is_sufficient:
+            skip_web_search = True
+            logger.info("EVALUATOR: YES -> DB du, bo qua Web Search")
+        else:
+            logger.info("EVALUATOR: NO -> DB thieu, tiep tuc Web Search")
+    elif action in ("PROCEED_RAG_PR_SEARCH", "PROCEED_PR"):
+        logger.info("Buoc 0: Nhanh PR -> LUON chay Web Search")
+    elif not rag_context:
+        logger.info("Buoc 0: Context DB rong -> bat buoc Web Search")
 
     # ══════════════════════════════════════════════════════════
     # NHÁNH A: DB ĐỦ + Evaluator YES → Trả rag_context thô
-    # (Chỉ khi evaluator quyết DB đủ, KHÔNG phải khi web tắt)
     # ══════════════════════════════════════════════════════════
-    if skip_web_search and web_search_enabled:
+    if skip_web_search:
         # Evaluator phán DB đủ → trả thẳng, không cần synthesizer
         state["final_response"] = rag_context
         state["response_source"] = "rag_db_only"
@@ -240,20 +244,10 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
     cache_hit = False
     cache_sim = 0.0
 
-    if not skip_web_search and web_search_enabled:
+    if not skip_web_search:
         state = _run_web_search_pipeline(state, standalone_query, action)
         cache_hit = state.get("search_cache_hit", False)
         cache_sim = state.get("search_cache_similarity", 0.0)
-
-    # ══════════════════════════════════════════════════════════
-    # NHÁNH C: WEB SEARCH TẮT → Chỉ dùng rag_context
-    # Vẫn chạy Synthesizer + Sanitizer để format chuẩn
-    # ══════════════════════════════════════════════════════════
-    if not web_search_enabled:
-        logger.info(
-            "Web Search OFF -> Synthesizer+Sanitizer se dung RAG context only (%d chars)",
-            len(rag_context)
-        )
 
     # ══════════════════════════════════════════════════════════
     # Bước 4: GỘP NGỮ CẢNH (nếu có web results)
@@ -269,15 +263,22 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
         )
         state["final_response"] = merged if merged else rag_context
     else:
-        # Không có web results (web tắt hoặc web lỗi) → dùng rag_context
         state["final_response"] = rag_context
 
     # ══════════════════════════════════════════════════════════
-    # Bước 5: SYNTHESIZER + SANITIZER (LUÔN CHẠY)
-    # Input: rag_context + web_search_results (có thể None)
+    # Bước 5: SYNTHESIZER + SANITIZER
+    # SKIP nếu cả DB context lẫn web results đều rỗng
+    # (không có gì để tổng hợp → tiết kiệm ~1-1.5s LLM calls)
     # ══════════════════════════════════════════════════════════
-    logger.info("Buoc 5: Synthesizer + Sanitizer...")
-    state = _run_synthesizer_sanitizer_loop(state)
+    has_content = bool(rag_context) or bool(web_results)
+
+    if has_content:
+        logger.info("Buoc 5: Synthesizer + Sanitizer...")
+        state = _run_synthesizer_sanitizer_loop(state)
+    else:
+        logger.info(
+            "Buoc 5: SKIP Synthesizer+Sanitizer (rag_context rong + web_results null)"
+        )
 
     # ══════════════════════════════════════════════════════════
     # Kết thúc pipeline

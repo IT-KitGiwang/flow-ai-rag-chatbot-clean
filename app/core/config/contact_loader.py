@@ -5,13 +5,10 @@ File contact_info.md chứa toàn bộ SĐT, email, địa chỉ phòng ban UFM.
 Được cache 1 lần duy nhất khi module load — KHÔNG gọi LLM, KHÔNG tốn token.
 
 Sử dụng:
-    from app.core.config.contact_loader import get_contact_block, get_hotline_short
+    from app.core.config.contact_loader import get_contact_block
 
-    # Lấy toàn bộ thông tin liên hệ (để gắn vào fallback message dài)
+    # Lấy toàn bộ thông tin liên hệ (để gắn vào fallback message)
     full_contact = get_contact_block()
-
-    # Lấy dòng hotline ngắn gọn (để gắn vào message block ngắn)
-    short = get_hotline_short()
 """
 
 from pathlib import Path
@@ -38,15 +35,7 @@ def _load_contact() -> str:
 
 
 def get_contact_block() -> str:
-    """Trả toàn bộ nội dung contact_info.md (gắn vào fallback dài)."""
+    """Trả toàn bộ nội dung contact_info.md (gắn vào fallback message)."""
     return _load_contact()
 
-
-def get_hotline_short() -> str:
-    """Trả 1 dòng hotline ngắn gọn (gắn vào cuối message block ngắn)."""
-    return (
-        "💡 **Cần hỗ trợ trực tiếp?**\n"
-        "📞 Hotline: (028) 3772 0406 (Cử nhân) | 0967 657 532 (Thạc sĩ/Tiến sĩ)\n"
-        "💬 Zalo UFM: [zalo.me/ufmhcm](https://zalo.me/ufmhcm)"
-    )
 """Utility to load static contact info from contact_info.md."""

@@ -12,7 +12,7 @@
 # ----------------------------------------------------------
 input_validation:
   max_input_chars: 3000             # Hard limit chống DoS (CHẶN cứng nếu vượt)
-  summarize_threshold: 1500         # >= threshold → gọi LLM tóm tắt trước khi xử lý
+  summarize_threshold: 2000         # >= threshold → gọi LLM tóm tắt trước khi xử lý
 
 # ----------------------------------------------------------
 # LỚP 1: Keyword Filter & Normalization

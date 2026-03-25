@@ -307,19 +307,27 @@ def search_vector_multi_query(
     program_name: str = None,
 ) -> list:
     """
-    Chạy Vector Search với tất cả embeddings (standalone + multi-query).
+    Chạy Vector Search SONG SONG với tất cả embeddings (standalone + multi-query).
     Deduplicate và giữ score cao nhất cho mỗi chunk.
+
+    Tối ưu: ThreadPoolExecutor chạy N DB queries cùng lúc thay vì tuần tự.
     """
     best_scores: dict = {}   # chunk_id → best score
     best_data: dict = {}     # chunk_id → metadata dict
 
-    for emb in query_embeddings:
-        results = search_vector(emb, cfg, program_level, program_name)
-        for item in results:
-            cid = item["chunk_id"]
-            if cid not in best_scores or item["score"] > best_scores[cid]:
-                best_scores[cid] = item["score"]
-                best_data[cid] = item
+    # ── Chạy song song tất cả vector searches ──
+    with ThreadPoolExecutor(max_workers=min(len(query_embeddings), 4)) as pool:
+        futures = [
+            pool.submit(search_vector, emb, cfg, program_level, program_name)
+            for emb in query_embeddings
+        ]
+        for future in as_completed(futures):
+            results = future.result()
+            for item in results:
+                cid = item["chunk_id"]
+                if cid not in best_scores or item["score"] > best_scores[cid]:
+                    best_scores[cid] = item["score"]
+                    best_data[cid] = item
 
     # Sắp xếp theo cosine score giảm dần, lấy top_k
     sorted_ids = sorted(best_scores.keys(), key=lambda x: best_scores[x], reverse=True)

@@ -122,6 +122,8 @@ semantic_router:
   model: "google/gemini-2.5-flash"
   temperature: 0.0
   response_format: "json_object"
+  max_tokens: 300
+  timeout_seconds: 5
   fallbacks:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"

@@ -147,7 +147,7 @@ def _format_value(val) -> str:
 _NODE_DISPLAY = {
     "fast_scan":    ("🛡️",  "FAST SCAN NODE (Guard Layer 0-1)"),
     "context":      ("🔄",  "CONTEXT NODE (Query Reformulation)"),
-    "guard":        ("🔐",  "CONTEXTUAL GUARD NODE (Layer 2a+2b)"),
+    "guard":        ("🔐",  "CONTEXTUAL GUARD NODE (Layer 2a Llama)"),
     "intent":       ("🧭",  "INTENT NODE (Router Phân Loại Ý Định)"),
     "multi_query":  ("🔀",  "MULTI-QUERY NODE (Sinh biến thể)"),
     "embedding":    ("📊",  "EMBEDDING NODE (BGE-M3 batch)"),

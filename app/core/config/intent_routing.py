@@ -75,12 +75,12 @@ class ResponseTemplateConfig(BaseModel):
         import random
         from app.core.config.contact_loader import get_contact_block
         msg = random.choice(self.greet_messages)
-        return f"{msg}\n\n---\n{get_contact_block()}"
+        return f"{msg}\n---\n{get_contact_block()}"
 
     def get_clarify(self) -> str:
-        """Trả về 1 template hỏi lại ngẫu nhiên + hotline ngắn."""
+        """Trả về 1 template hỏi lại ngẫu nhiên + đầy đủ thông tin liên hệ."""
         import random
-        from app.core.config.contact_loader import get_hotline_short
+        from app.core.config.contact_loader import get_contact_block
         msg = random.choice(self.clarify_messages)
-        return f"{msg}\n\n{get_hotline_short()}"
+        return f"{msg}\n---\n{get_contact_block()}"
 

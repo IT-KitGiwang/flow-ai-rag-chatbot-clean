@@ -67,15 +67,22 @@ def _extract_json(raw: str) -> dict | None:
 def _validate_parsed(parsed: dict, allowed_intents: set, fallback: str) -> tuple:
     """
     Validate kết quả đã parse từ LLM.
-    Trả về (intent, summary) đã qua kiểm tra.
+    Trả về (intent, summary, is_safe) đã qua kiểm tra.
     """
+    status  = str(parsed.get("status", "SAFE")).strip().upper()
     intent  = str(parsed.get("intent",  "")).strip()
     summary = str(parsed.get("summary", "")).strip()
 
-    if not intent or intent not in allowed_intents:
-        return fallback, summary or ""
+    is_safe = (status == "SAFE")
 
-    return intent, summary
+    # Nếu unsafe thì ép về intent rác để chặn ngay
+    if not is_safe:
+        return "TAN_CONG_HE_THONG", summary, False
+
+    if not intent or intent not in allowed_intents:
+        return fallback, summary or "", True
+
+    return intent, summary, True
 
 
 # ================================================================
@@ -139,7 +146,7 @@ def classify_by_llm(standalone_query: str) -> tuple:
               ✅ OK  → Trả kết quả
               ❌ Lỗi → Trả fallback KHONG_XAC_DINH
 
-    Returns: (intent_name: str, summary: str)
+    Returns: (intent_name: str, summary: str, is_safe: bool)
     """
     semantic_cfg = query_flow_config.semantic_router
     validator_cfg = query_flow_config.intent_validator
@@ -166,7 +173,7 @@ def classify_by_llm(standalone_query: str) -> tuple:
 
     if not model_chain:
         print(f"   [IntentService] ⚠️ Không có model nào trong semantic_router → {fallback_intent}")
-        return fallback_intent, standalone_query
+        return fallback_intent, standalone_query, True
 
     # ── DUYỆT QUA TỪNG MODEL (Primary → Fallback 1 → Fallback 2) ──
     for i, entry in enumerate(model_chain):
@@ -197,13 +204,13 @@ def classify_by_llm(standalone_query: str) -> tuple:
             parsed = _extract_json(raw)
 
             if parsed is not None:
-                intent, summary = _validate_parsed(parsed, allowed_intents, fallback_intent)
+                intent, summary, is_safe = _validate_parsed(parsed, allowed_intents, fallback_intent)
                 print(
                     f"   [IntentService] ✅ {label} ({entry['provider']}/{entry['model']}) "
                     f"— {elapsed:.3f}s "
-                    f"→ intent='{intent}'"
+                    f"→ intent='{intent}', safe={is_safe}"
                 )
-                return intent, summary
+                return intent, summary, is_safe
             else:
                 print(
                     f"   [IntentService] ⚠️ {label} JSON lỗi định dạng "
@@ -228,7 +235,7 @@ def classify_by_llm(standalone_query: str) -> tuple:
 
     # Nếu tất cả các model đều tạch (timeout hoặc JSON lỗi hết)
     print(f"   [IntentService] ❌ Toàn bộ model đều thất bại → Fallback cứng ({fallback_intent})")
-    return fallback_intent, standalone_query
+    return fallback_intent, standalone_query, True
 
 
 # ================================================================
@@ -246,6 +253,7 @@ def classify_intent(standalone_query: str) -> dict:
             "intent":         "HOC_PHI_HOC_BONG",
             "intent_summary": "học phí ngành marketing",
             "intent_action":  "PROCEED_RAG",
+            "is_safe":        True
         }
     """
     action_cfg = query_flow_config.intent_actions
@@ -260,17 +268,23 @@ def classify_intent(standalone_query: str) -> dict:
             "intent": intent,
             "intent_summary": query,
             "intent_action": action_cfg.get_action(intent),
+            "is_safe": True
         }
 
     # ── Phân loại bằng LLM (Primary → Backup nếu JSON lỗi) ──
     start = time.time()
-    intent, summary = classify_by_llm(query)
+    # Call LLM Layer
+    intent, summary, is_safe = classify_by_llm(query)
     elapsed = time.time() - start
 
-    print(f"   [IntentService — tổng {elapsed:.3f}s] intent='{intent}' | summary='{summary[:60]}'")
+    print(f"   [IntentService — tổng {elapsed:.3f}s] intent='{intent}' | summary='{summary[:60]}', is_safe={is_safe}")
+
+    # 4. Map intent -> action
+    intent_action = action_cfg.get_action(intent)
 
     return {
         "intent": intent,
         "intent_summary": summary,
-        "intent_action": action_cfg.get_action(intent),
+        "intent_action": intent_action,
+        "is_safe": is_safe
     }

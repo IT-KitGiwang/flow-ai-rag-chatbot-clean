@@ -108,7 +108,7 @@ class GuardianService:
                 headers=headers,
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=4) as resp:
+            with urllib.request.urlopen(req, timeout=1.5) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
                 output = result["choices"][0]["message"]["content"].strip()
 

@@ -31,7 +31,7 @@ import time
 from app.services.langgraph.state import GraphState
 from app.services.langgraph.nodes.context_node import _call_gemini_api_with_fallback
 from app.core.config import query_flow_config
-from app.core.config.contact_loader import get_hotline_short
+from app.core.config.contact_loader import get_contact_block
 from app.core.prompts import prompt_manager
 from app.utils.logger import get_logger
 
@@ -146,7 +146,7 @@ def response_node(state: GraphState) -> GraphState:
                 or (
                     "Xin lỗi bạn, mình chưa tìm thấy thông tin phù hợp cho câu hỏi này. "
                     "Bạn có thể diễn đạt cụ thể hơn hoặc liên hệ trực tiếp:\n"
-                    f"{get_hotline_short()}"
+                    f"{get_contact_block()}"
                 )
             )
             return {
@@ -165,8 +165,8 @@ def response_node(state: GraphState) -> GraphState:
             fallback = (
                 "Xin lỗi bạn, hệ thống đang bảo trì tạm thời để cập nhật định kì. "
                 "Bạn vui lòng thử lại sau giây lát hoặc liên hệ trực tiếp "
-                "để được hỗ trợ nhanh nhất nhé!\n\n"
-                f"{get_hotline_short()}"
+                "để được hỗ trợ nhanh nhất nhé!\n"
+                f"{get_contact_block()}"
             )
 
         return {

@@ -123,16 +123,20 @@ def care_node(state: GraphState) -> GraphState:
         # Render system prompt từ prompts_config.yaml (biến Jinja2)
         sys_prompt_raw = prompt_manager.get_system("care_node")
 
-        # System prompt có {{ contact_text }} và {{ tone_guide }}
+        # System prompt now only needs {{ tone_guide }}
         from jinja2 import Environment, BaseLoader
         _env = Environment(loader=BaseLoader(), trim_blocks=True, lstrip_blocks=True)
         sys_template = _env.from_string(sys_prompt_raw)
         system_prompt = sys_template.render(
-            contact_text=contact_text,
             tone_guide=tone_guide,
         )
 
-        care_response = _call_care_llm(system_prompt, user_query)
+        # Gọi LLM sinh 2-3 câu an ủi
+        care_response_raw = _call_care_llm(system_prompt, user_query)
+        
+        # Tự động gắn thông tin liên hệ tĩnh (Saving LLM tokens & preventing hallucinations)
+        care_response = f"{care_response_raw.strip()}\n\n{contact_text}"
+        
         elapsed = time.time() - start_time
         logger.info(
             "Care Node [%.3fs] Qwen OK, intent='%s', %d ky tu",
