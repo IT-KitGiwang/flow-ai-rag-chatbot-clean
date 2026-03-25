@@ -26,29 +26,53 @@ import urllib.request
 import urllib.error
 from app.services.langgraph.state import GraphState
 from app.core.config import query_flow_config
+from app.core.prompts import prompt_manager
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+
+def _summarize_message(content: str) -> str:
+    """
+    Tóm tắt message dài bằng Gemini Flash Lite.
+    Nếu lỗi → fallback cắt cứng.
+    """
+    config = query_flow_config.memory.auto_summarize
+    try:
+        summary = _call_gemini_api_with_fallback(
+            system_prompt=prompt_manager.get_system("auto_summarize"),
+            user_content=content,
+            config_section=config,
+        )
+        return summary[:config.target_length]
+    except Exception:
+        return content[:config.target_length] + "..."
 
 
 def _build_history_prompt(chat_history: list, max_turns: int) -> str:
     """
-    Xây dựng chuỗi lịch sử hội thoại để đưa vào prompt.
-    Chỉ lấy max_turns cặp gần nhất (Sliding Window).
+    Xây dựng chuỗi lịch sử hội thoại.
+    Message quá dài sẽ được tóm tắt tự động (nếu bật).
     """
     if not chat_history:
         return ""
 
-    # Cắt lấy max_turns cặp gần nhất (mỗi cặp = 2 messages)
     max_messages = max_turns * 2
     recent = chat_history[-max_messages:]
+
+    summarize_cfg = query_flow_config.memory.auto_summarize
+    max_len = query_flow_config.memory.max_tokens_per_message
 
     lines = []
     for msg in recent:
         role = msg.get("role", "user")
         content = msg.get("content", "")
 
-        # Cắt bớt message quá dài
-        max_tokens = query_flow_config.memory.max_tokens_per_message
-        if len(content) > max_tokens:
-            content = content[:max_tokens] + "..."
+        # Tóm tắt tự động nếu message quá dài
+        if summarize_cfg.enabled and len(content) > summarize_cfg.trigger_length:
+            content = _summarize_message(content)
+        elif len(content) > max_len:
+            content = content[:max_len] + "..."
 
         if role == "user":
             lines.append(f"Người dùng: {content}")
@@ -80,6 +104,7 @@ def _call_gemini_api(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "User-Agent": "UFM-Admission-Bot/1.0",
+        "HTTP-Referer": "https://ufm.edu.vn",
     }
     data = {
         "model": config_section.model,
@@ -102,6 +127,95 @@ def _call_gemini_api(
         return result["choices"][0]["message"]["content"].strip()
 
 
+def _call_gemini_api_with_fallback(
+    system_prompt: str,
+    user_content: str,
+    config_section,
+    node_key: str = "",
+) -> str:
+    """
+    Gọi API LLM với cơ chế fallback tự động.
+
+    Luồng:
+      1. Thử primary model từ config_section (provider, model, temperature...)
+      2. Nếu lỗi → đọc fallbacks[] từ models_config.yaml[node_key]
+      3. Thử lần lượt từng fallback model (giữ nguyên temperature/max_tokens)
+
+    Args:
+        system_prompt: System prompt cho LLM
+        user_content: User prompt đã render
+        config_section: Pydantic config chứa provider, model, temperature, max_tokens, timeout_seconds
+        node_key: Key trong models_config.yaml để đọc fallbacks[] (vd: "sanitizer", "main_bot")
+                  Nếu rỗng → không có fallback, chỉ thử primary.
+    """
+    fb_settings = query_flow_config.fallback_models.settings
+
+    # ── Bước 1: Thử primary model (từ config_section) ──
+    try:
+        return _call_gemini_api(system_prompt, user_content, config_section)
+    except Exception as primary_error:
+        if fb_settings.log_fallback:
+            logger.warning(
+                "Primary FAIL (%s/%s): %s",
+                getattr(config_section, 'provider', '?'),
+                getattr(config_section, 'model', '?'),
+                primary_error,
+            )
+
+        # Nếu không có node_key → không có fallback → raise ngay
+        if not node_key:
+            raise
+
+        last_error = primary_error
+
+    # ── Bước 2: Đọc fallbacks[] từ models_config.yaml ──
+    from app.core.config import models_yaml_data
+    node_cfg = models_yaml_data.get(node_key, {})
+    fallbacks_raw = node_cfg.get("fallbacks", []) or []
+
+    if not fallbacks_raw:
+        raise last_error
+
+    max_retries = fb_settings.max_retries
+
+    for i, fb_entry in enumerate(fallbacks_raw[:max_retries]):
+        try:
+            class _TempConfig:
+                pass
+            temp = _TempConfig()
+            temp.provider = fb_entry.get("provider", "openrouter")
+            temp.model = fb_entry.get("model", "")
+            temp.temperature = getattr(config_section, 'temperature', 0.0)
+            temp.max_tokens = getattr(config_section, 'max_tokens', 500)
+            temp.timeout_seconds = getattr(config_section, 'timeout_seconds', 15)
+
+            delay = fb_settings.retry_delay_ms / 1000
+            time.sleep(delay)
+
+            result = _call_gemini_api(system_prompt, user_content, temp)
+
+            if fb_settings.log_fallback:
+                logger.info(
+                    "Fallback #%d OK: %s/%s (node_key='%s')",
+                    i + 1, temp.provider, temp.model, node_key,
+                )
+
+            return result
+
+        except Exception as e:
+            last_error = e
+            if fb_settings.log_fallback:
+                logger.warning(
+                    "Fallback #%d FAIL (%s/%s): %s",
+                    i + 1,
+                    fb_entry.get("provider", "?"),
+                    fb_entry.get("model", "?"),
+                    e,
+                )
+
+    raise last_error
+
+
 def _reformulate_query(user_query: str, chat_history: list) -> str:
     """
     Gọi Gemini Flash Lite để dịch câu hỏi lửng lơ thành câu hỏi độc lập.
@@ -119,14 +233,15 @@ def _reformulate_query(user_query: str, chat_history: list) -> str:
     max_turns = query_flow_config.memory.max_history_turns
     history_text = _build_history_prompt(chat_history, max_turns)
 
-    # Ghép user_content
-    user_content = (
-        f"LỊCH SỬ HỘI THOẠI:\n{history_text}\n\n"
-        f"CÂU HỎI MỚI NHẤT CỦA NGƯỜI DÙNG:\n{user_query}"
+    # Render user_prompt từ Prompt Hub
+    user_content = prompt_manager.render_user(
+        "context_node",
+        chat_history_text=history_text,
+        user_query=user_query,
     )
 
     return _call_gemini_api(
-        system_prompt=config.system_prompt,
+        system_prompt=prompt_manager.get_system("context_node"),
         user_content=user_content,
         config_section=config,
     )
@@ -145,7 +260,6 @@ def context_node(state: GraphState) -> GraphState:
 
     Output:
       - state["standalone_query"]: Câu hỏi đã reformulate (hoặc giữ nguyên)
-      - state["next_node"]: "contextual_guard"
 
     Logic:
       1. Nếu chat_history RỖNG + skip_if_no_history = true
@@ -165,52 +279,42 @@ def context_node(state: GraphState) -> GraphState:
         return {
             **state,
             "standalone_query": user_query,
-            "next_node": "contextual_guard",
         }
 
     # ── Trường hợp 2: Không có lịch sử → Skip (tiết kiệm $) ──
     if config.skip_if_no_history and (not chat_history or len(chat_history) == 0):
         elapsed = time.time() - start_time
-        print(f"   [Context Node — {elapsed:.3f}s] Không có history → giữ nguyên user_query")
+        logger.info("Context Node [%.3fs] Khong co history -> giu nguyen user_query", elapsed)
         return {
             **state,
             "standalone_query": user_query,
-            "next_node": "contextual_guard",
         }
 
     # ── Trường hợp 3: Có lịch sử → Gọi Gemini để reformulate ──
     try:
         standalone = _reformulate_query(user_query, chat_history)
         elapsed = time.time() - start_time
-        print(f"   [Context Node — {elapsed:.3f}s] Reformulated:")
-        print(f"     user_query       : \"{user_query}\"")
-        print(f"     standalone_query : \"{standalone}\"")
+        logger.info(
+            "Context Node [%.3fs] Reformulated: '%s' -> '%s'",
+            elapsed, user_query[:50], standalone[:80]
+        )
         return {
             **state,
             "standalone_query": standalone,
-            "next_node": "contextual_guard",
         }
     except urllib.error.URLError as e:
         # Timeout hoặc lỗi mạng → Fallback giữ nguyên
         elapsed = time.time() - start_time
-        print(f"   [Context Node — {elapsed:.3f}s] ⚠️ API timeout/error: {e}")
-        print(f"     Fallback: standalone_query = user_query")
+        logger.error("Context Node [%.3fs] API timeout/error: %s", elapsed, e, exc_info=True)
         return {
             **state,
             "standalone_query": user_query,
-            "next_node": "contextual_guard",
         }
     except Exception as e:
         elapsed = time.time() - start_time
-        print(f"   [Context Node — {elapsed:.3f}s] ⚠️ Unexpected error: {e}")
-        print(f"     Fallback: standalone_query = user_query")
+        logger.error("Context Node [%.3fs] Unexpected error: %s", elapsed, e, exc_info=True)
         return {
             **state,
             "standalone_query": user_query,
-            "next_node": "contextual_guard",
         }
 
-
-def context_router(state: GraphState) -> str:
-    """Conditional Edge: context → contextual_guard (luôn luôn)."""
-    return "contextual_guard"

@@ -1,4 +1,12 @@
-Ngày hiệu lực: 15/01/2026
+---
+doc_type: thongtinchung
+doc_id: phuluc3
+title: "PHỤ LỤC 3"
+effective_date: 2026-01-15
+program_level: thac_si
+academic_year: "2026"
+keywords: [thạc sĩ, cao học, tuyển sinh]
+---
 # PHỤ LỤC 3
 # HỌC ÔN THI ANH VĂN
 *(Kèm theo Thông báo Về việc tuyển sinh trình độ thạc sĩ đợt 1 năm 2026, số 186 /TB-ĐHTCM-ĐTSĐH)*

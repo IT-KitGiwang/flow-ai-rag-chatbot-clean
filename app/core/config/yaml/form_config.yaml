@@ -1,0 +1,118 @@
+# ============================================================
+# FORM AGENT CONFIG — Kho layout mẫu đơn & định nghĩa fields
+# File: app/core/config/yaml/form_config.yaml
+#
+# ⚠️ Model config (extractor, drafter, provider) → models_config.yaml section "form:"
+# ⚠️ Prompt config (system_prompt, user_prompt) → prompts_config.yaml
+# ⚠️ File này CHỈ còn: fields (định nghĩa trường) + forms (danh mục mẫu đơn)
+# ============================================================
+
+# ----------------------------------------------------------
+# DANH MỤC CÁC TRƯỜNG THÔNG TIN (FIELDS)
+#
+# field_type:
+#   "personal" → Thông tin cá nhân (Tên, CCCD, SĐT...)
+#               Nếu user không cung cấp → để trống [Điền ... tại đây]
+#   "content"  → Nội dung chung (Nguyện vọng, Lý do, Hoàn cảnh...)
+#               Nếu user không cung cấp → LLM tự viết mẫu tham khảo
+# ----------------------------------------------------------
+fields:
+  # --- Thông tin cá nhân (personal) ---
+  - key: "ho_ten"
+    label: "Họ và tên"
+    field_type: "personal"
+    placeholder: "[Điền họ và tên đầy đủ]"
+    extract_hint: "Tên đầy đủ của người dùng"
+
+  - key: "ngay_sinh"
+    label: "Ngày sinh"
+    field_type: "personal"
+    placeholder: "....../......./.........."
+    extract_hint: "Ngày tháng năm sinh"
+
+  - key: "dia_chi"
+    label: "Địa chỉ liên hệ"
+    field_type: "personal"
+    placeholder: "[Điền địa chỉ liên hệ]"
+    extract_hint: "Nơi ở hiện tại hoặc hộ khẩu"
+
+  - key: "so_dien_thoai"
+    label: "Số điện thoại"
+    field_type: "personal"
+    placeholder: "[Điền số điện thoại]"
+    extract_hint: "Số điện thoại liên hệ"
+
+  - key: "email"
+    label: "Email"
+    field_type: "personal"
+    placeholder: "[Điền email]"
+    extract_hint: "Địa chỉ email"
+
+  - key: "cccd"
+    label: "Số CCCD/CMND"
+    field_type: "personal"
+    placeholder: "[Điền số CCCD/CMND]"
+    extract_hint: "Số căn cước công dân hoặc chứng minh nhân dân"
+
+  - key: "co_quan"
+    label: "Cơ quan công tác"
+    field_type: "personal"
+    placeholder: "[Điền nơi đang công tác hoặc học tập]"
+    extract_hint: "Nơi đang làm việc hoặc học tập"
+
+  # --- Nội dung chung (content) → LLM viết tham khảo nếu trống ---
+  - key: "nganh_hoc"
+    label: "Ngành học / Nguyện vọng"
+    field_type: "content"
+    placeholder: ""
+    extract_hint: "Ngành, chuyên ngành, chương trình đào tạo mong muốn"
+    reference_hint: "Viết mẫu tham khảo nguyện vọng đăng ký ngành học phù hợp với bối cảnh câu hỏi của người dùng"
+
+  - key: "ly_do"
+    label: "Lý do / Mong muốn"
+    field_type: "content"
+    placeholder: ""
+    extract_hint: "Lý do nộp đơn, mong muốn học tập, nguyện vọng"
+    reference_hint: "Viết mẫu tham khảo lý do nộp đơn, mong muốn phát triển bản thân, nguyện vọng nghề nghiệp"
+
+  - key: "thong_tin_bo_sung"
+    label: "Thông tin bổ sung"
+    field_type: "content"
+    placeholder: ""
+    extract_hint: "Bất kỳ thông tin thêm nào người dùng cung cấp"
+    reference_hint: "Viết mẫu tham khảo thông tin bổ sung: hoàn cảnh, kinh nghiệm, thành tích nổi bật (nếu phù hợp)"
+
+
+# ----------------------------------------------------------
+# DANH MỤC MẪU ĐƠN (FORM CATALOG)
+# ----------------------------------------------------------
+forms:
+  - id: "don_du_tuyen_thac_si"
+    name: "Đơn dự tuyển đào tạo trình độ Thạc sĩ"
+    description: "Đăng ký dự tuyển chương trình Thạc sĩ tại UFM"
+    keywords: ["thạc sĩ", "cao học", "master", "sau đại học"]
+    template_file: "mẪU ĐƠN DỰ TUYỂN ĐÀO TẠO THẠC SĨ.md"
+
+  - id: "don_dang_ky_tien_si"
+    name: "Đơn đăng ký dự tuyển đào tạo trình độ Tiến sĩ"
+    description: "Đăng ký dự tuyển chương trình Tiến sĩ tại UFM"
+    keywords: ["tiến sĩ", "nghiên cứu sinh", "ncs", "phd"]
+    template_file: "dondangkitiensi.md"
+
+  - id: "de_cuong_nghien_cuu"
+    name: "Đề cương nghiên cứu của thí sinh dự tuyển NCS"
+    description: "Mẫu đề cương nghiên cứu cho thí sinh dự tuyển Nghiên cứu sinh"
+    keywords: ["đề cương", "nghiên cứu", "luận văn", "khóa luận", "đồ án"]
+    template_file: "Mẫu đề cương.md"
+
+  - id: "giay_cam_doan"
+    name: "Giấy cam đoan (dành cho đối tượng có giấy tốt nghiệp tạm thời)"
+    description: "Cam đoan cho đối tượng chưa có bằng tốt nghiệp chính thức"
+    keywords: ["cam đoan", "cam kết", "tốt nghiệp tạm thời", "chưa có bằng"]
+    template_file: "Giấy cam đoan.md"
+
+  - id: "don_chung"
+    name: "Đơn hành chính chung"
+    description: "Mẫu đơn tổng hợp cho các yêu cầu chung: bảo lưu, chuyển ngành, xin nghỉ, đăng ký học phần"
+    keywords: ["bảo lưu", "chuyển ngành", "xin nghỉ", "đăng ký", "mẫu đơn", "đơn"]
+    template_file: null

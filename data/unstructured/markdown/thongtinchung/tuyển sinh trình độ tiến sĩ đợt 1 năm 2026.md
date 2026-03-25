@@ -1,15 +1,24 @@
-Ngày hiệu lực: 05/01/2026
-Văn bản Số: /185 /TB-ĐHTCM
+---
+doc_type: thongtinchung
+doc_id: tuyen-sinh-trinh-do-tien-si-dot-1-nam-2026
+title: "Về việc tuyển sinh trình độ tiến sĩ đợt 1 năm 2026"
+effective_date: 2026-01-05
+doc_number: "/185/TB-ĐHTCM"
+program_level: tien_si
+academic_year: "2026"
+keywords: [tiến sĩ, NCS, nghiên cứu sinh]
+---
 # THÔNG BÁO
 ## Về việc tuyển sinh trình độ tiến sĩ đợt 1 năm 2026
 -start-
+
 ## 1. Ngành tuyển sinh:
 
-| STT | Ngành                 | Mã ngành | Chỉ tiêu |
-| --- | --------------------- | -------- | -------- |
-| 1.  | Tài chính – Ngân hàng | 9340201  | 50       |
-| 2.  | Quản trị kinh doanh   | 9340101  | 80       |
-| 3.  | Quản lý kinh tế       | 9310110  | 10       |
+|STT|Ngành|Mã ngành|Chỉ tiêu|
+|-|-|-|-|
+|1.|Tài chính – Ngân hàng|9340201|50|
+|2.|Quản trị kinh doanh|9340101|80|
+|3.|Quản lý kinh tế|9310110|10|
 
 **2. Hình thức tuyển sinh:** xét tuyển, kiểm tra và đánh giá thí sinh (thí sinh trình bày dự định nghiên cứu và dự kiến kế hoạch học tập, nghiên cứu toàn khóa trước tiểu ban chuyên môn).
 
@@ -47,18 +56,20 @@ d) Minh chứng về kinh nghiệm nghiên cứu quy định tại Khoản 3.1, 
 e) Minh chứng về trình độ ngoại ngữ theo Khoản 3.2, Mục 3 của Thông báo này.
 g) Bản sao có chứng thực Giấy chứng nhận của Cục Quản lý chất lượng về công nhận văn bằng đối với những bằng thạc sĩ, bằng đại học do cơ sở đào tạo nước ngoài cấp.
 h) 01 Bản sao Căn cước công dân/Hộ chiếu bản sao y chứng thực hoặc bản sao kèm theo bản chính để đối chiếu
-- Link tải Mẫu hồ sơ dự tuyển NCS: https://daotaosdh.ufm.edu.vn/vi/bieu-mau-hoc-vu/mau-ho-so-xet-tuyen-nghien-cuu-sinh
-- Link đăng ký Tuyển sinh NCS trực tuyến: https://forms.gle/Wb8j3knjWFfkQgW39
+
+* Link tải Mẫu hồ sơ dự tuyển NCS: https://daotaosdh.ufm.edu.vn/vi/bieu-mau-hoc-vu/mau-ho-so-xet-tuyen-nghien-cuu-sinh
+* Link đăng ký Tuyển sinh NCS trực tuyến: https://forms.gle/Wb8j3knjWFfkQgW39
 
 **6. Lịch trình xét tuyển dự kiến**
-- Phát và nhận hồ sơ: từ ngày có Thông báo này đến hết ngày 24/4/2026.
-- Trình bày bài luận nghiên cứu: 28 - 29/4/2026.
-- Công bố kết quả: 06/5/2026.
-- Thời gian nhập học dự kiến: 07 – 14/5/2026.
-- Bắt đầu khóa học: 21/5/2026.
+
+* Phát và nhận hồ sơ: từ ngày có Thông báo này đến hết ngày 24/4/2026.
+* Trình bày bài luận nghiên cứu: 28 - 29/4/2026.
+* Công bố kết quả: 06/5/2026.
+* Thời gian nhập học dự kiến: 07 – 14/5/2026.
+* Bắt đầu khóa học: 21/5/2026.
 **7. Lệ phí tuyển sinh**
-- Lệ phí xét hồ sơ: 300.000 đồng/thí sinh.
-- Phí nhận xét bài luận của NCS: 1.800.000 đồng/thí sinh.
+* Lệ phí xét hồ sơ: 300.000 đồng/thí sinh.
+* Phí nhận xét bài luận của NCS: 1.800.000 đồng/thí sinh.
 
 **8. Học phí dự kiến:**
 Học phí cho 3 năm học tập trung là 198.000.000 đồng, tương ứng 66.000.000 đồng/năm.
@@ -76,24 +87,27 @@ Email: tuyensinhsaudaihoc@ufm.edu.vn.
 Các thông tin chi tiết khác, vui lòng tham khảo từ trang chủ Viện Đào tạo sau đại học, hoặc liên hệ trực tiếp để được tư vấn và giải đáp.
 
 # CÁC PHỤ LỤC
+
 **Phụ lục I: Kế hoạch học tập, nghiên cứu toàn khóa của nghiên cứu sinh**
 *(Kèm theo Thông báo số 185 /TB-ĐHTCM ngày 15 /01/2026)*
 
 ## KẾ HOẠCH HỌC TẬP, NGHIÊN CỨU TOÀN KHÓA CỦA NGHIÊN CỨU SINH
 
-Cơ sở đào tạo: [________________________________________________________________________________]
-Họ và tên nghiên cứu sinh: [____________________________________________________________________]
-Tên đề tài: [___________________________________________________________________________________]
-Ngành đào tạo: [________________________________________________________________________________]
-Mã ngành đào tạo: [_____________________________________________________________________________]
+Cơ sở đào tạo: [**]
+Họ và tên nghiên cứu sinh: []
+Tên đề tài: [*]
+Ngành đào tạo: []
+Mã ngành đào tạo: [***____________________________________________________________________]
 
-| Năm học   | Nội dung học tập, nghiên cứu                    | Khối lượng học tập, nghiên cứu đăng ký         | Kết quả dự kiến                                                       |
-| --------- | ----------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------- |
-| Năm thứ 1 | \*Các học phần về chuyên môn bổ sung (nếu có)\* | \*10 - 12 tín chỉ\*                            | \*Chứng nhận kết thúc học phần\*                                      |
-|           | \*Các học phần về phương pháp nghiên cứu\*      | \*04 - 06 tín chỉ\*                            | \*Chứng nhận kết thúc học phần\*                                      |
-|           | \*Thực hiện phần 1 của Luận án\*                | \*đến 24 tín chỉ\*                             | \*Chương Tổng quan về vấn đề nghiên cứu, phương pháp nghiên cứu,...\* |
-| Năm thứ 2 | \*Thực hiện phần 2 của Luận án\*                | \*đến 30 tín chỉ\*                             | \*Luận án và các bài công bố,...\*                                    |
-| Năm thứ 3 | \*Thực hiện phần 3 của Luận án\*                | \*Số tín chỉ còn lại của chương trình 04 năm\* | \*Luận án và các bài công bố,...\*                                    |
+|Năm học|Nội dung học tập, nghiên cứu|Khối lượng học tập, nghiên cứu đăng ký|Kết quả dự kiến|
+|-|-|-|-|
+|Năm thứ 1|*Các học phần về chuyên môn bổ sung (nếu có)*|*10 - 12 tín chỉ*|*Chứng nhận kết thúc học phần*|
+||*Các học phần về phương pháp nghiên cứu*|*04 - 06 tín chỉ*|*Chứng nhận kết thúc học phần*|
+||*Thực hiện phần 1 của Luận án*|*đến 24 tín chỉ*|*Chương Tổng quan về vấn đề nghiên cứu, phương pháp nghiên cứu,...*|
+|Năm thứ 2|*Thực hiện phần 2 của Luận án*|*đến 30 tín chỉ*|*Luận án và các bài công bố,...*|
+|Năm thứ 3|*Thực hiện phần 3 của Luận án*|*Số tín chỉ còn lại của chương trình 04 năm*|*Luận án và các bài công bố,...*|
+
 
 
 <u>*Lưu ý:*</u> *Phần in nghiêng là ví dụ về các nội dung trong kế hoạch học tập, nghiên cứu toàn khóa. Kế hoạch cụ thể của nghiên cứu sinh được xây dựng căn cứ vào quy định của cơ sở đào tạo về chương trình đào tạo tiến sĩ đã công bố.*
+

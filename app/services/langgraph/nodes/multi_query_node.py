@@ -25,8 +25,12 @@ Ví dụ:
 import re
 import time
 from app.services.langgraph.state import GraphState
-from app.services.langgraph.nodes.context_node import _call_gemini_api
+from app.services.langgraph.nodes.context_node import _call_gemini_api_with_fallback
 from app.core.config import query_flow_config
+from app.core.prompts import prompt_manager
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def _parse_variants(raw_output: str) -> list:
@@ -55,7 +59,6 @@ def multi_query_node(state: GraphState) -> GraphState:
 
     Output:
       - state["multi_queries"]: List 3 biến thể câu hỏi
-      - state["next_node"]: "embedding"
 
     Logic:
       1. Nếu multi_query bị tắt → multi_queries = [] → chỉ dùng standalone_query
@@ -72,20 +75,32 @@ def multi_query_node(state: GraphState) -> GraphState:
         return {
             **state,
             "multi_queries": [],
-            "next_node": "embedding",
         }
 
     # ── Trường hợp 2: Gọi Gemini sinh biến thể ──
     try:
-        # Thay {num_variants} trong system_prompt
-        system_prompt = config.system_prompt.replace(
-            "{num_variants}", str(config.num_variants)
+        # System prompt đã chứa {{ num_variants }} → render bằng Jinja2
+        system_prompt = prompt_manager.render_user(
+            "multi_query_node",
+            num_variants=config.num_variants,
+        )
+        # Nhưng vì system_prompt nằm ở key 'system_prompt', ta dùng get_system
+        # rồi replace thủ công cho đơn giản
+        sys_prompt_raw = prompt_manager.get_system("multi_query_node")
+        sys_prompt = sys_prompt_raw.replace(
+            "{{ num_variants }}", str(config.num_variants)
         )
 
-        raw_output = _call_gemini_api(
-            system_prompt=system_prompt,
-            user_content=f"Câu hỏi gốc: {standalone_query}",
+        user_content = prompt_manager.render_user(
+            "multi_query_node",
+            standalone_query=standalone_query,
+        )
+
+        raw_output = _call_gemini_api_with_fallback(
+            system_prompt=sys_prompt,
+            user_content=user_content,
             config_section=config,
+            node_key="multi_query",
         )
 
         variants = _parse_variants(raw_output)
@@ -94,24 +109,19 @@ def multi_query_node(state: GraphState) -> GraphState:
         variants = variants[:config.num_variants]
 
         elapsed = time.time() - start_time
-        print(f"   [Multi-Query — {elapsed:.3f}s] Sinh {len(variants)} biến thể:")
-        for i, v in enumerate(variants, 1):
-            print(f"     {i}. {v}")
+        logger.info("Multi-Query [%.3fs] Sinh %d bien the", elapsed, len(variants))
 
         return {
             **state,
             "multi_queries": variants,
-            "next_node": "embedding",
         }
 
     except Exception as e:
         elapsed = time.time() - start_time
-        print(f"   [Multi-Query — {elapsed:.3f}s] ⚠️ Lỗi: {e}")
-        print(f"     Fallback: chỉ dùng standalone_query gốc (không có biến thể)")
+        logger.error("Multi-Query [%.3fs] Loi: %s", elapsed, e, exc_info=True)
         return {
             **state,
             "multi_queries": [],
-            "next_node": "embedding",
         }
 
 

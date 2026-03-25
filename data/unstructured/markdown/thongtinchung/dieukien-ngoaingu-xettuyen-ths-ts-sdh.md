@@ -1,4 +1,12 @@
-Ngày hiệu lực: 24/02/2026
+---
+doc_type: thongtinchung
+doc_id: dieukien-ngoaingu-xettuyen-ths-ts-sdh
+title: "(Ban hành kèm theo Quyết định số 537/QĐ-ĐHTCM ngày 24 tháng 02 năm 2026 của Hiệu trưởng Trường Đại học Tài chính – Marketing)"
+effective_date: 2026-02-24
+program_level: tien_si
+academic_year: "2026"
+keywords: [tiến sĩ, NCS, nghiên cứu sinh]
+---
 **Văn bản hướng dẫn thực hiện điều kiện ngoại ngữ xét tuyển sinh thạc sĩ, tiến sĩ và tốt nghiệp đối với học viên cao học tại Trường Đại học Tài chính – Marketing**
 *(Ban hành kèm theo Quyết định số 537/QĐ-ĐHTCM ngày 24 tháng 02 năm 2026 của Hiệu trưởng Trường Đại học Tài chính – Marketing)*
 -start-

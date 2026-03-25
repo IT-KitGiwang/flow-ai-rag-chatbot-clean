@@ -1,104 +1,24 @@
 # ============================================================
-# QUERY CONTEXT CONFIG — Bộ nhớ hội thoại & Tái tạo câu hỏi
-# Model: Gemini 3.1 Flash Lite (Siêu rẻ, siêu nhanh)
+# QUERY CONTEXT CONFIG — Chỉ chứa Memory & Logic params (phi-Model)
+# File: app/core/config/yaml/query_context_config.yaml
+#
+# ⚠️ Model configs (reformulation, multi_query, embedding) → models_config.yaml
+# ⚠️ System prompts → prompts_config.yaml
+# ⚠️ File này CHỈ còn: memory settings, auto_summarize triggers,
+#    merge_strategy, top_k settings, skip flags
 # ============================================================
 
 # ----------------------------------------------------------
 # BỘ NHỚ HỘI THOẠI (Sliding Window Memory)
-# Chỉ giữ N lượt gần nhất để tiết kiệm context window
 # ----------------------------------------------------------
 memory:
-  max_history_turns: 10           # Số cặp (user + assistant) gần nhất giữ lại
-                                      # 8 cặp = 16 messages → ~2000 tokens trung bình
-                                      # Tăng lên 12 nếu domain phức tạp, giảm xuống 4 nếu muốn rẻ hơn
-  max_tokens_per_message: 400   # Cắt bớt mỗi message > 400s (tránh user paste cả bài)
-  include_system_summary: false       # true = Thêm câu tóm tắt hệ thống ở đầu history (tốn thêm ~50 token)
+  max_history_turns: 10
+  max_tokens_per_message: 400
+  include_system_summary: false
 
-# ----------------------------------------------------------
-# QUERY REFORMULATION (Tái tạo câu hỏi từ ngữ cảnh hội thoại)
-# Biến "Thế còn ngành Marketing?" → "Học phí ngành Marketing là bao nhiêu?"
-# ----------------------------------------------------------
-query_reformulation:
-  enabled: true
-  provider: "openrouter"
-  model: "google/gemini-3.1-flash-lite-preview"
-  temperature: 0.0                    # 0.0 = Deterministic, không sáng tạo linh tinh
-  max_tokens: 250               # Câu hỏi rewrite ngắn gọn, không cần dài
-  timeout_seconds: 8                  # Timeout cho API call (giây)
-
-  # Khi KHÔNG CÓ lịch sử hội thoại → BỎ QUA bước này (tiết kiệm 1 API call)
-  skip_if_no_history: true
-
-  system_prompt: >
-    Bạn là module Tái tạo câu hỏi (Query Reformulation) cho chatbot tuyển sinh Đại học UFM.
-
-    NHIỆM VỤ:
-    Đọc lịch sử hội thoại và câu hỏi MỚI NHẤT của người dùng.
-    Viết lại câu hỏi MỚI NHẤT thành câu hỏi ĐỘC LẬP, ĐẦY ĐỦ NGỮ CẢNH, có thể hiểu mà KHÔNG cần đọc lịch sử.
-
-    QUY TẮC:
-    1. Giữ nguyên ý nghĩa gốc, KHÔNG thêm thông tin ngoài những gì được đề cập.
-    2. Nếu câu hỏi dùng đại từ ("nó", "cái đó", "thế", "vậy"), thay bằng danh từ cụ thể từ ngữ cảnh.
-    3. Nếu câu hỏi đã đầy đủ ngữ cảnh rồi → GIỮ NGUYÊN, không sửa gì.
-    4. CHỈ trả về câu hỏi đã viết lại. KHÔNG giải thích, KHÔNG đặt trong ngoặc kép.
-
-    VÍ DỤ:
-    Lịch sử: User hỏi "Học phí ngành QTKD", Bot trả lời "600.000đ/tín chỉ"
-    Câu hỏi mới: "Thế còn ngành Marketing?"
-    → Trả về: Học phí ngành Marketing là bao nhiêu?
-
-    Lịch sử: User hỏi "Điều kiện xét tuyển thạc sĩ Kế toán"
-    Câu hỏi mới: "Năm nay lấy bao nhiêu điểm?"
-    → Trả về: Điểm chuẩn xét tuyển thạc sĩ ngành Kế toán năm 2026 là bao nhiêu?
-
-# ----------------------------------------------------------
-# MULTI-QUERY EXPANSION (Tăng Recall cho Vector Search)
-# Sinh 2-3 biến thể của câu hỏi → nhúng song song → gộp kết quả
-# ----------------------------------------------------------
-multi_query:
-  enabled: true
-  provider: "openrouter"
-  model: "google/gemini-3.1-flash-lite-preview"
-  temperature: 0.3                  # Cho phép sáng tạo nhẹ để sinh biến thể đa dạng
-  max_tokens: 300                     # Đủ cho 3 biến thể ngắn
-  timeout_seconds: 8
-  num_variants: 3                     # Số biến thể câu hỏi cần sinh (2-4, khuyến nghị 3)
-  
-  # Chiến thuật gộp kết quả từ nhiều phiên bản câu hỏi
-  merge_strategy: "rrf"              # "rrf" = Reciprocal Rank Fusion (Ổn định, tốt cho top-k nhỏ)
-                                      # "union" = Hợp tất cả kết quả, bỏ trùng, sắp xếp theo similarity
-                                      # "max_score" = Giữ score cao nhất cho mỗi chunk
-  top_k_per_query: 5                  # Mỗi biến thể lấy top 5 → gộp → chọn top_k_final
-  top_k_final: 7                      # Số chunk cuối cùng đưa vào RAG context
-
-  system_prompt: >
-    Bạn là module Mở rộng Truy vấn (Multi-Query Expansion) cho chatbot tuyển sinh Đại học UFM.
-
-    NHIỆM VỤ:
-    Sinh ra ĐÚNG {num_variants} phiên bản KHÁC NHAU của câu hỏi gốc.
-    Mỗi phiên bản phải diễn đạt CÙNG Ý NGHĨA nhưng dùng TỪ KHÓA KHÁC NHAU để tăng khả năng tìm kiếm.
-
-    QUY TẮC:
-    1. Giữ nguyên ngữ nghĩa gốc, KHÔNG thêm ý mới.
-    2. Đa dạng hóa từ vựng: dùng từ đồng nghĩa, viết tắt ↔ viết đầy đủ, diễn đạt lại.
-    3. Mỗi phiên bản trong một dòng riêng biệt. Sử dụng format:
-       1. <phiên bản 1>
-       2. <phiên bản 2>
-       3. <phiên bản 3>
-    4. KHÔNG đánh số thừa, KHÔNG giải thích, KHÔNG dùng markdown.
-
-    VÍ DỤ:
-    Câu hỏi gốc: "Học phí ngành Marketing là bao nhiêu?"
-    → Trả về:
-    1. Chi phí đào tạo ngành Marketing tại UFM năm 2026
-    2. Mức học phí chương trình cử nhân Marketing UFM
-    3. Ngành Marketing UFM thu bao nhiêu tiền một kỳ học
-
-# ----------------------------------------------------------
-# EMBEDDING — Cấu hình cho embedding các biến thể
-# ----------------------------------------------------------
-embedding:
-  provider: "openrouter"
-  model: "baai/bge-m3"
-  dimensions: 1024
-  batch_size: 4                       # Nhúng tối đa 4 câu 1 lần (1 gốc + 3 biến thể)
+  # Tóm tắt tự động khi message quá dài
+  auto_summarize:
+    enabled: true
+    trigger_length: 300              # Message > 300 ký tự sẽ bị tóm tắt
+    target_length: 120               # Tóm còn ~120 ký tự
+    # Model config cho auto_summarize → models_config.yaml section auto_summarize

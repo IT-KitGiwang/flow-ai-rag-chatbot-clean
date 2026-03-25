@@ -1,5 +1,13 @@
-Ngày hiệu lực: 15/01/2026
-Văn bản số: 186 /TB-ĐHTCM
+---
+doc_type: thongtinchung
+doc_id: tuyensinh-trinhdo-thacsi-dot1-2026
+title: "Về việc tuyển sinh trình độ thạc sĩ đợt 1 năm 2026"
+effective_date: 2026-01-15
+doc_number: "186/TB-ĐHTCM"
+program_level: thac_si
+academic_year: "2026"
+keywords: [thạc sĩ, cao học, tuyển sinh]
+---
 # THÔNG BÁO
 ## Về việc tuyển sinh trình độ thạc sĩ đợt 1 năm 2026
 -start-

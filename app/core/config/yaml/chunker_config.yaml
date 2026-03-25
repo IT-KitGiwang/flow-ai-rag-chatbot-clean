@@ -22,27 +22,28 @@ semantic_chunker:
   # ── NGƯỠNG SIMILARITY ──────────────────────────────────
   # Cosine Similarity < threshold → CẮT tại điểm đó.
   #
-  # ❓ Tại sao 0.55 thay vì 0.6?
+  # ❓ Tại sao 0.57?
   #    Văn bản tuyển sinh UFM có cấu trúc tương đối đồng nhất
   #    (cùng chủ đề "điều kiện", "hồ sơ", "lệ phí"...).
   #    Với threshold 0.6 → nhiều đoạn bị gộp thành 1 chunk lớn
-  #    vì similarity quá cao. Hạ xuống 0.55 giúp tách chính xác hơn.
+  #    vì similarity quá cao. 0.57 cân bằng giữa tách chi tiết
+  #    và giữ ngữ cảnh liên kết.
   #
   #    Khoảng tham chiếu:
   #      0.45-0.50: Cắt rất mạnh → chunks cực nhỏ
   #      0.55-0.60: Cân bằng → phù hợp văn bản tuyển sinh
   #      0.65-0.75: Cắt nhẹ → chunks lớn, ít chi tiết
-  similarity_threshold: 0.55
+  similarity_threshold: 0.57
 
   # ── OVERLAP ─────────────────────────────────────────────
   # Token overlap giữa 2 child chunks liền kề.
   # Tạo "cầu nối" ngữ cảnh: cuối chunk N = đầu chunk N+1.
   #
-  # ❓ Tại sao 80 thay vì 100?
-  #    Child chunks chỉ ~200-400 tokens. Overlap 100/400 = 25%
-  #    → quá nhiều trùng lặp, phình vector DB. 80 tokens
-  #    vừa đủ giữ liên kết mà không lãng phí dung lượng.
-  overlap_tokens: 80
+  # ❓ Tại sao 120?
+  #    Child chunks ~200-400 tokens. 120/400 = 30% overlap —
+  #    đủ giữ ngữ cảnh liên kết chặt chẽ cho văn bản tuyển sinh
+  #    nhiều mệnh đề liên tiếp (điều kiện, hồ sơ, lệ phí).
+  overlap_tokens: 120
 
   # ── BASE BLOCK ──────────────────────────────────────────
   # Kích thước 1 đơn vị nhỏ nhất (block) trước khi so sánh Embedding.
@@ -55,7 +56,7 @@ semantic_chunker:
   base_block_tokens: 100
 
   # ── CHUNK SIZE BOUNDS ────────────────────────────────────
-  # min: Chunk < 50 tokens → gộp vào chunk liền kề (quá nhỏ = vô nghĩa)
+  # min: Chunk < 70 tokens → gộp vào chunk liền kề (quá nhỏ = vô nghĩa)
   # max: Giới hạn cứng để RAG context window không bị phình.
   #
   # ❓ Tại sao max nâng từ 1500 → 800?
@@ -63,7 +64,7 @@ semantic_chunker:
   #    1500 tokens ≈ 5000 chars → quá dài cho 1 child, LLM khó focus.
   #    800 tokens ≈ 2500 chars → vừa đủ chứa 1 đoạn ý hoàn chỉnh.
   #    (Parent chunk mới là nơi chứa ngữ cảnh rộng 2000 tokens)
-  min_chunk_tokens: 50
+  min_chunk_tokens: 70
   max_chunk_tokens: 800
 
   # ── API TUNING ──────────────────────────────────────────
@@ -140,6 +141,6 @@ hierarchical_chunker:
   # ── CHILD CONFIG (kế thừa từ semantic_chunker) ──────────
   # Khi gọi chunk_with_semantic(), các giá trị này từ semantic_chunker
   # sẽ được dùng cho Child chunks. Giá trị ở đây chỉ là tham khảo.
-  min_child_tokens: 50              # = semantic_chunker.min_chunk_tokens
+  min_child_tokens: 70              # = semantic_chunker.min_chunk_tokens
   max_child_tokens: 800             # = semantic_chunker.max_chunk_tokens
-  overlap_tokens: 80                # = semantic_chunker.overlap_tokens
+  overlap_tokens: 120               # = semantic_chunker.overlap_tokens
