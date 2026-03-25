@@ -104,7 +104,7 @@ from app.core.config.rag_search import (
     ProceedRagSearchConfig,
     PRQueryConfig, UFMQueryConfig, WebSearchConfig,
     InfoSynthesizerConfig, PRSynthesizerConfig, SanitizerConfig,
-    SearchCacheConfig, EvaluatorConfig
+    SearchCacheConfig, EvaluatorConfig, CuratorConfig
 )
 from app.core.config.fallback_models import FallbackModelsConfig
 from app.core.config.retriever import RetrieverConfig
@@ -137,6 +137,7 @@ class QueryFlowConfig(BaseModel):
     sanitizer: SanitizerConfig = SanitizerConfig()
     search_cache: SearchCacheConfig = SearchCacheConfig()
     context_evaluator: EvaluatorConfig = EvaluatorConfig()
+    context_curator: CuratorConfig = CuratorConfig()
     # Hybrid Retriever (Vector + BM25 + RRF + Parent)
     retriever: RetrieverConfig = RetrieverConfig()
     # Fallback Models

@@ -107,17 +107,31 @@ class SanitizerConfig(BaseModel):
 
 
 # ============================================================
-# CONTEXT EVALUATOR (Self-RAG Gate)
+# CONTEXT EVALUATOR (Self-RAG Gate — YES/NO, max_tokens=20)
 # ============================================================
 _eval = _rs_data.get("context_evaluator", {})
 
 class EvaluatorConfig(BaseModel):
     enabled: bool = _eval.get("enabled", True)
     provider: str = _eval.get("provider", "openrouter")
-    model: str = _eval.get("model", "google/gemini-3.0-flash-preview")
+    model: str = _eval.get("model", "google/gemini-2.5-flash")
     temperature: float = _eval.get("temperature", 0.0)
-    max_tokens: int = _eval.get("max_tokens", 10)
-    timeout_seconds: int = _eval.get("timeout_seconds", 5)
+    max_tokens: int = _eval.get("max_tokens", 20)
+    timeout_seconds: int = _eval.get("timeout_seconds", 8)
+
+
+# ============================================================
+# CONTEXT CURATOR (Lọc/tóm tắt ngữ cảnh RAG — max_tokens=4000)
+# ============================================================
+_cur = _rs_data.get("context_curator", {})
+
+class CuratorConfig(BaseModel):
+    enabled: bool = _cur.get("enabled", True)
+    provider: str = _cur.get("provider", "openrouter")
+    model: str = _cur.get("model", "google/gemini-2.5-flash")
+    temperature: float = _cur.get("temperature", 0.0)
+    max_tokens: int = _cur.get("max_tokens", 4000)
+    timeout_seconds: int = _cur.get("timeout_seconds", 12)
 
 
 # ============================================================

@@ -54,6 +54,7 @@ class IntentActionConfig(BaseModel):
 
 # ============================================================
 # RESPONSE TEMPLATES (GREET & CLARIFY — Không cần gọi LLM)
+# Tự động gắn thông tin liên hệ từ contact_info.md
 # ============================================================
 _tmpl = prompts_yaml_data.get("response_templates", {})
 
@@ -70,11 +71,16 @@ class ResponseTemplateConfig(BaseModel):
     )
 
     def get_greet(self) -> str:
-        """Trả về 1 template chào hỏi ngẫu nhiên."""
+        """Trả về 1 template chào hỏi ngẫu nhiên + hotline ngắn."""
         import random
-        return random.choice(self.greet_messages)
+        from app.core.config.contact_loader import get_contact_block
+        msg = random.choice(self.greet_messages)
+        return f"{msg}\n\n---\n{get_contact_block()}"
 
     def get_clarify(self) -> str:
-        """Trả về 1 template hỏi lại ngẫu nhiên."""
+        """Trả về 1 template hỏi lại ngẫu nhiên + hotline ngắn."""
         import random
-        return random.choice(self.clarify_messages)
+        from app.core.config.contact_loader import get_hotline_short
+        msg = random.choice(self.clarify_messages)
+        return f"{msg}\n\n{get_hotline_short()}"
+

@@ -27,6 +27,7 @@ from app.services.langgraph.state import GraphState
 from app.utils.guardian_utils import GuardianService
 from app.utils.query_summarizer import summarize_long_query
 from app.core.config import query_flow_config
+from app.core.config.contact_loader import get_hotline_short
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -65,7 +66,7 @@ def fast_scan_node(state: GraphState) -> GraphState:
             "fast_scan_passed": False,
             "fast_scan_blocked_layer": 0,
             "fast_scan_message": f"[Fast-Scan L0a — {elapsed:.3f}s] Chặn DoS: {len(query)} chars",
-            "final_response": iv_config.fallback_too_long,
+            "final_response": f"{iv_config.fallback_too_long}\n\n{get_hotline_short()}",
             "response_source": "fast_scan",
         }
 
@@ -113,7 +114,7 @@ def fast_scan_node(state: GraphState) -> GraphState:
             "fast_scan_passed": False,
             "fast_scan_blocked_layer": 1,
             "fast_scan_message": f"[Fast-Scan L1a — {elapsed:.3f}s] {msg}",
-            "final_response": msg,
+            "final_response": f"{msg}\n\n{get_hotline_short()}",
             "response_source": "fast_scan",
         }
 
@@ -132,7 +133,7 @@ def fast_scan_node(state: GraphState) -> GraphState:
             "fast_scan_passed": False,
             "fast_scan_blocked_layer": 1,
             "fast_scan_message": f"[Fast-Scan L1b — {elapsed:.3f}s] {msg}",
-            "final_response": msg,
+            "final_response": f"{msg}\n\n{get_hotline_short()}",
             "response_source": "fast_scan",
         }
 

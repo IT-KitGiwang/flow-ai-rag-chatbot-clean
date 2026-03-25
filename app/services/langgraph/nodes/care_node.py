@@ -111,20 +111,19 @@ def care_node(state: GraphState) -> GraphState:
         logger.info("Care Node - SKIP (intent_action='%s' != 'PROCEED_CARE')", intent_action)
         return state
 
-    # Lấy thông tin liên hệ theo intent (từ care_config.yaml)
-    contact = _care_config.get_contact(intent)
-    contact_text = contact.to_text()
+    # Lấy thông tin liên hệ CHÍNH THỨC từ contact_info.md (Single Source of Truth)
+    from app.core.config.contact_loader import get_contact_block
+    contact_text = get_contact_block()
 
     # Lấy tone guide theo intent (từ prompts_config.yaml)
     tone_guide = _get_tone_guide(intent)
 
-    # Gọi Qwen LLM
+    # Gọi Care LLM
     try:
         # Render system prompt từ prompts_config.yaml (biến Jinja2)
         sys_prompt_raw = prompt_manager.get_system("care_node")
 
         # System prompt có {{ contact_text }} và {{ tone_guide }}
-        # prompt_manager.get_system() trả raw string, cần render thủ công
         from jinja2 import Environment, BaseLoader
         _env = Environment(loader=BaseLoader(), trim_blocks=True, lstrip_blocks=True)
         sys_template = _env.from_string(sys_prompt_raw)

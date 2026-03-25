@@ -46,12 +46,13 @@ _BYPASS_SOURCES = {
     "clarify_template",
     "care_template",
     "form_template",              # Form Node đã soạn xong → bypass
-    "rag_search_synthesized",     # Sanitizer đã duyệt xong → bypass
     "intent_block",
     "fast_scan",                  # Fast Scan chặn → bypass (matched node output)
     "contextual_guard",
     "keyword_filter",
     "input_validation",
+    # ⚠️ "rag_search_synthesized" KHÔNG bypass — Main Bot cần viết lại
+    # Synthesizer chỉ trích xuất dữ liệu thô, Main Bot chuyển thành câu trả lời thân thiện
 }
 
 

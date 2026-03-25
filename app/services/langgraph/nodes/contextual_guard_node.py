@@ -21,6 +21,12 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _get_hotline() -> str:
+    """Lazy-load hotline ngắn từ contact_info.md (cache sau lần đầu)."""
+    from app.core.config.contact_loader import get_hotline_short
+    return get_hotline_short()
+
+
 def _timed_check_2a(query: str):
     """Wrap Layer 2a với timing chi tiết."""
     t0 = time.time()
@@ -92,7 +98,7 @@ def contextual_guard_node(state: GraphState) -> GraphState:
                     "contextual_guard_passed": False,
                     "contextual_guard_blocked_layer": layer_name,
                     "contextual_guard_message": f"[Contextual-Guard L{layer_name} — {elapsed:.3f}s] {msg}",
-                    "final_response": msg,
+                    "final_response": f"{msg}\n\n{_get_hotline()}",
                     "response_source": "contextual_guard",
                 }
 

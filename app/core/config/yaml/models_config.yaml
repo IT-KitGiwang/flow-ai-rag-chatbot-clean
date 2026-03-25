@@ -128,16 +128,32 @@ semantic_router:
 
 
 # ══════════════════════════════════════════════════════════════
-# ❽ CONTEXT CURATOR — Gemini 2.5 Flash lọc ngữ cảnh RAG
-#    Chạy sau RAG Node, giữ tối đa info hữu ích, bỏ noise
+# ❽a CONTEXT EVALUATOR — Self-RAG Gate (YES/NO, chỉ cần 1 token)
+#     Chạy trong proceed_rag_search pipeline, quyết định có cần Web Search không
 # ══════════════════════════════════════════════════════════════
 context_evaluator:
   enabled: true
   provider: "openrouter"
   model: "google/gemini-2.5-flash"
   temperature: 0.0
-  max_tokens: 20
+  max_tokens: 20              # Chỉ cần YES/NO
   timeout_seconds: 8
+  fallbacks:
+    - provider: "openrouter"
+      model: "qwen/qwen-2.5-7b-instruct"
+
+# ══════════════════════════════════════════════════════════════
+# ❽b CONTEXT CURATOR — Gemini 2.5 Flash lọc ngữ cảnh RAG
+#     Chạy sau RAG Node, tóm tắt/lọc info hữu ích, bỏ noise
+#     ⚠️ PHẢI có max_tokens lớn vì output là đoạn văn chi tiết
+# ══════════════════════════════════════════════════════════════
+context_curator:
+  enabled: true
+  provider: "openrouter"
+  model: "google/gemini-2.5-flash"
+  temperature: 0.0
+  max_tokens: 4000            # Output chi tiết, KHÔNG được cắt ngắn
+  timeout_seconds: 12
   fallbacks:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"

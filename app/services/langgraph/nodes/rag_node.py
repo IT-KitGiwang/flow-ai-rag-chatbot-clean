@@ -37,7 +37,7 @@ def _curate_context(standalone_query: str, raw_context: str) -> str:
     from app.services.langgraph.nodes.context_node import _call_gemini_api_with_fallback
     from app.core.prompts import prompt_manager
 
-    config = query_flow_config.context_evaluator  # Dùng chung config context_evaluator (Gemini 2.5 Flash)
+    config = query_flow_config.context_curator  # Config riêng cho Curator (max_tokens=4000)
 
     try:
         sys_prompt = prompt_manager.get_system("context_curator")

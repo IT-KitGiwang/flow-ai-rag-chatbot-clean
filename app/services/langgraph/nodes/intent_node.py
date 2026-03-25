@@ -117,11 +117,14 @@ def intent_node(state: GraphState) -> GraphState:
 
     # ── BLOCK_FALLBACK: Intent nhóm 4 lọt xuống ──
     if intent_action == "BLOCK_FALLBACK":
+        from app.core.config.contact_loader import get_hotline_short
         semantic_cfg = query_flow_config.semantic_router
         fallback_msg = semantic_cfg.fallbacks.get(
             intent,
             semantic_cfg.fallback_out_of_scope
         ).strip()
+        # Gắn hotline vào cuối để user biết cách liên hệ trực tiếp
+        fallback_msg = f"{fallback_msg}\n\n{get_hotline_short()}"
         logger.info("Intent Node - BLOCK_FALLBACK -> intent='%s'", intent)
         return {
             **state,

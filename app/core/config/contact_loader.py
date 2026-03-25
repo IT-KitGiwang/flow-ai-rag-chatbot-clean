@@ -45,9 +45,8 @@ def get_contact_block() -> str:
 def get_hotline_short() -> str:
     """Trả 1 dòng hotline ngắn gọn (gắn vào cuối message block ngắn)."""
     return (
-        "📞 Hotline Tuyển sinh ĐH: (028) 3772 0406 | "
-        "Sau đại học: 0967 657 532\n"
-        "📧 Email: tuyensinh@ufm.edu.vn | "
-        "🌐 https://tuyensinh.ufm.edu.vn"
+        "💡 **Cần hỗ trợ trực tiếp?**\n"
+        "📞 Hotline: (028) 3772 0406 (Cử nhân) | 0967 657 532 (Thạc sĩ/Tiến sĩ)\n"
+        "💬 Zalo UFM: [zalo.me/ufmhcm](https://zalo.me/ufmhcm)"
     )
 """Utility to load static contact info from contact_info.md."""
