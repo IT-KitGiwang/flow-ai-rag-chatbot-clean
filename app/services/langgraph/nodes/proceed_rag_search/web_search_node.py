@@ -62,10 +62,6 @@ _UFM_DOMAIN_MAP = {
     "ký túc xá":       "ktx.ufm.edu.vn",
 }
 
-_UFM_DEFAULT_DOMAINS = ["ufm.edu.vn", "tuyensinh.ufm.edu.vn", "pdt.ufm.edu.vn"]
-_PR_TOP_DOMAINS = ["thanhnien.vn", "vnexpress.net", "tuoitre.vn"]
-
-
 def _select_ufm_domains(query: str, max_domains: int = 3) -> list:
     """Chọn tối đa 3 domains UFM phù hợp nhất dựa trên từ khóa."""
     query_lower = query.lower()
@@ -80,7 +76,9 @@ def _select_ufm_domains(query: str, max_domains: int = 3) -> list:
     if len(matched) >= max_domains:
         return list(matched)[:max_domains]
 
-    for d in _UFM_DEFAULT_DOMAINS:
+    # Lấy thêm domain từ config nếu chưa đủ
+    default_domains = query_flow_config.web_search.ufm_domains
+    for d in default_domains:
         if d not in matched:
             matched.add(d)
         if len(matched) >= max_domains:
@@ -109,12 +107,12 @@ def _build_search_query(
     ufm_queries: list,
     pr_query: str,
 ) -> str:
-    """Xây dựng user prompt cho Gemini + Google Search tool."""
+    """Xây dựng user prompt cho Gemini + Google Search tool vắt chặt domain."""
 
     if action == "PROCEED_RAG_UFM_SEARCH":
         domains = _select_ufm_domains(standalone_query)
-        domain_hint = ", ".join(domains)
-
+        site_filters = " OR ".join([f"site:{d}" for d in domains])
+        
         search_terms = standalone_query
         if ufm_queries:
             search_terms = " | ".join(ufm_queries[:2])
@@ -122,20 +120,26 @@ def _build_search_query(
         search_terms = _inject_year_anchor(search_terms)
 
         return (
-            f"Tìm thông tin chính xác về: {search_terms}\n"
-            f"Ưu tiên nguồn: {domain_hint}\n"
-            f"Trả lời bằng tiếng Việt, ngắn gọn, có dẫn nguồn."
+            f"Bạn phải tìm kiếm bằng cú pháp sau để giới hạn đúng domain:\n"
+            f"\"{search_terms} {site_filters}\"\n\n"
+            f"CHỈ TRÍCH XUẤT THÔNG TIN TỪ CÁC TÊN MIỀN NÀY: {', '.join(domains)}.\n"
+            f"TUYỆT ĐỐI KHÔNG lấy dữ liệu từ các trang báo ngoài hoặc nguồn khác.\n"
+            f"Trả lời bằng tiếng Việt, ngắn gọn, có dẫn nguồn chính xác."
         )
 
     else:  # PROCEED_RAG_PR_SEARCH
-        domain_hint = ", ".join(_PR_TOP_DOMAINS)
+        pr_domains = query_flow_config.web_search.pr_domains[:5] # limit to top 5
+        site_filters = " OR ".join([f"site:{d}" for d in pr_domains])
+        
         search_terms = pr_query or standalone_query
         search_terms = _inject_year_anchor(search_terms)
 
         return (
-            f"Tìm bài báo về Trường ĐH Tài chính - Marketing (UFM): {search_terms}\n"
-            f"Ưu tiên nguồn: {domain_hint}\n"
-            f"Trả lời bằng tiếng Việt, trích dẫn tên bài báo và link."
+            f"Bạn phải tìm bài báo về Trường ĐH Tài chính - Marketing (UFM) bằng cú pháp sau:\n"
+            f"\"{search_terms} {site_filters}\"\n\n"
+            f"CHỈ ĐƯỢC PHÉP TRÍCH BÁO TỪ BÁO CHÍNH THỐNG: {', '.join(pr_domains)}.\n"
+            f"TUYỆT ĐỐI KHÔNG dùng Wikipedia, Facebook hay nền tảng mạng xã hội.\n"
+            f"Trả lời bằng tiếng Việt, trích dẫn rõ tên bài báo và link."
         )
 
 
@@ -163,6 +167,7 @@ def _call_gemini_native_with_search(
     temperature: float,
     max_tokens: int,
     timeout: int,
+    allowed_domains: list = None,
 ) -> tuple:
     """
     Gọi Google Gemini API native với google_search tool.
@@ -252,7 +257,7 @@ def _call_gemini_native_with_search(
         citations = _extract_citations_from_text(raw_text)
 
     # ── Validate URLs: loại bỏ link chết ──
-    citations = _validate_citations(citations)
+    citations = _validate_citations(citations, allowed_domains=allowed_domains)
 
     return raw_text, citations
 
@@ -332,22 +337,44 @@ def _extract_urls_from_html(html: str) -> list:
     return results
 
 
-def _validate_citations(citations: list, timeout: int = 3) -> list:
+def _validate_citations(citations: list, allowed_domains: list = None, timeout: int = 3) -> list:
     """
     Ping HEAD request song song tất cả URLs.
     Chỉ giữ lại citations có URL trả HTTP 200-399.
     Loại bỏ cứng mọi Google redirect URLs còn sót.
+    Loại bỏ cứng mọi URL không nằm trong allowed_domains (nếu có).
     """
     if not citations:
         return []
 
-    # Bước 1: Loại bỏ cứng Google redirect URLs
+    # Bước 1: Loại bỏ cứng Google redirect URLs và URL ngoài biên
     filtered = []
+    
+    # Chuẩn bị danh sách domain cho phép
+    safe_domains = [d.lower() for d in allowed_domains] if allowed_domains else []
+
     for c in citations:
         url = c.get("url", "")
+        if not url:
+            continue
+            
         if any(host in url for host in _GOOGLE_REDIRECT_HOSTS):
             logger.warning("Web Search - Loại Google redirect: %s", url[:80])
             continue
+            
+        # Hard-filter domain
+        if safe_domains:
+            try:
+                from urllib.parse import urlparse
+                domain = urlparse(url).netloc.lower()
+                # Chấp nhận subdomain (vd: pdt.ufm.edu.vn endswith ufm.edu.vn)
+                is_allowed = any(domain == d or domain.endswith(f".{d}") for d in safe_domains)
+                if not is_allowed:
+                    logger.warning("Web Search - Loai URL NGOAI LUONG: %s", url[:80])
+                    continue
+            except Exception:
+                pass
+
         filtered.append(c)
 
     if not filtered:
@@ -434,6 +461,12 @@ def web_search_node(state: GraphState) -> GraphState:
     system_prompt = prompt_manager.get_system("web_search_node")
     logger.info("Web Search - Prompt: '%s'", search_prompt[:120])
 
+    # ── Chuẩn bị allowed_domains để validate ──
+    if action == "PROCEED_RAG_UFM_SEARCH":
+        allowed_domains = query_flow_config.web_search.ufm_domains
+    else:
+        allowed_domains = query_flow_config.web_search.pr_domains[:5]
+
     # ══════════════════════════════════════════════════════
     # BƯỚC 1: Thử Google Gemini Native + google_search tool
     # ══════════════════════════════════════════════════════
@@ -445,6 +478,7 @@ def web_search_node(state: GraphState) -> GraphState:
             temperature=config.temperature,
             max_tokens=config.max_tokens,
             timeout=config.timeout_seconds,
+            allowed_domains=allowed_domains,
         )
 
         elapsed = time.time() - start_time
@@ -479,7 +513,7 @@ def web_search_node(state: GraphState) -> GraphState:
         )
 
         citations = _extract_citations_from_text(raw_result)
-        citations = _validate_citations(citations)
+        citations = _validate_citations(citations, allowed_domains=allowed_domains)
         elapsed = time.time() - start_time
         logger.info(
             "Web Search [%.3fs] FALLBACK OK, %d citations, %d chars",

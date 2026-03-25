@@ -144,7 +144,22 @@ context_evaluator:
 
 # ══════════════════════════════════════════════════════════════
 # ❾ PROCEED RAG SEARCH — Web-Augmented RAG Pipeline
-#    enabled: false → Chỉ dùng DB nội bộ, bỏ qua Web Search
+#
+#    ★ TOGGLE HIERARCHY (2 cấp bật/tắt):
+#
+#    proceed_rag_search.enabled: true/false
+#      → Bật/tắt TOÀN BỘ pipeline (query gen + web + synth + sanit)
+#      → false = trả rag_context thô, bypass mọi thứ
+#
+#    web_search.enabled: true/false  (★ PRODUCTION TOGGLE)
+#      → Chỉ bật/tắt phần TÌM KIẾM TRÊN MẠNG (internet search)
+#      → false = bỏ qua query gen + cache + web search API
+#      → Synthesizer + Sanitizer VẪN CHẠY (format chuẩn từ DB context)
+#      → KHÔNG ảnh hưởng các agent node khác (form, care, response)
+#
+#    Ví dụ Production:
+#      proceed_rag_search.enabled: true   # Pipeline vẫn hoạt động
+#      web_search.enabled: false          # Tắt internet search, tiết kiệm
 # ══════════════════════════════════════════════════════════════
 proceed_rag_search:
   enabled: true
@@ -172,8 +187,11 @@ ufm_query:
       model: "qwen/qwen-2.5-7b-instruct"
 
 # Web Search (Google native + google_search grounding)
+# ★ PRODUCTION TOGGLE: Đặt enabled: false để tắt tìm kiếm internet
+#   → Chỉ tắt web search, KHÔNG ảnh hưởng form/care/response nodes  
+#   → Synthesizer + Sanitizer vẫn chạy bình thường
 web_search:
-  enabled: true
+  enabled: false        # ← Đổi thành false để tắt internet search cho production
   provider: "google"
   model: "gemini-2.5-flash"
   temperature: 0.1
@@ -253,13 +271,13 @@ search_cache:
 # ══════════════════════════════════════════════════════════════
 care:
   provider: "openrouter"
-  model: "qwen/qwen3.5-flash-02-23"
+  model: "google/gemini-2.5-flash"
   temperature: 0.5
   max_tokens: 1000
   timeout_seconds: 15
   fallbacks:
     - provider: "openrouter"
-      model: "qwen/qwen-2.5-7b-instruct"
+      model: "qwen/qwen3-30b-a3b"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -268,18 +286,18 @@ care:
 form:
   provider: "openrouter"
   extractor:
-    model: "qwen/qwen3-30b-a3b"
+    model: "google/gemini-2.5-flash"
     temperature: 0.0
     max_tokens: 900
     timeout_seconds: 10
   drafter:
-    model: "qwen/qwen3-30b-a3b"
+    model: "google/gemini-2.5-flash"
     temperature: 0.3
     max_tokens: 5000
-    timeout_seconds: 15
+    timeout_seconds: 20
   fallbacks:
     - provider: "openrouter"
-      model: "qwen/qwen-2.5-7b-instruct"
+      model: "qwen/qwen3-30b-a3b"
 
 
 # ══════════════════════════════════════════════════════════════

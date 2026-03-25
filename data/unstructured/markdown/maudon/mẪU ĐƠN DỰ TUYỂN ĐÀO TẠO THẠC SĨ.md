@@ -26,7 +26,7 @@ Sau khi nghiên cứu thông báo tuyển sinh đào tạo trình độ thạc s
 
 Tôi kính đề nghị Hội đồng tuyển sinh đào tạo trình độ Thạc sĩ cho phép tôi được ghi tên vào danh sách thí sinh dự tuyển tại Trường Đại học Tài chính - Marketing đợt___ năm___
 
-| Ngành đăng ký dự tuyển: ___
+Ngành đăng ký dự tuyển: ___
 Hình thức đào tạo đăng ký dự tuyển: [ ] Chính quy
 Đăng ký Định hướng đào tạo: [ ] Nghiên cứu - [ ] Ứng dụng
 Đăng ký dự thi ngoại ngữ: ___

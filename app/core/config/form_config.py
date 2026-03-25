@@ -16,15 +16,15 @@ _fm_settings = models_yaml_data.get("form", {})
 
 
 class FormSettings(BaseModel):
-    extractor_model: str = _fm_settings.get("extractor", {}).get("model", "qwen/qwen3-30b-a3b")
+    extractor_model: str = _fm_settings.get("extractor", {}).get("model", "google/gemini-2.5-flash")
     extractor_temperature: float = _fm_settings.get("extractor", {}).get("temperature", 0.1)
     extractor_max_tokens: int = _fm_settings.get("extractor", {}).get("max_tokens", 500)
     extractor_timeout: int = _fm_settings.get("extractor", {}).get("timeout_seconds", 10)
 
-    drafter_model: str = _fm_settings.get("drafter", {}).get("model", "qwen/qwen3-30b-a3b")
+    drafter_model: str = _fm_settings.get("drafter", {}).get("model", "google/gemini-2.5-flash")
     drafter_temperature: float = _fm_settings.get("drafter", {}).get("temperature", 0.4)
     drafter_max_tokens: int = _fm_settings.get("drafter", {}).get("max_tokens", 2000)
-    drafter_timeout: int = _fm_settings.get("drafter", {}).get("timeout_seconds", 15)
+    drafter_timeout: int = _fm_settings.get("drafter", {}).get("timeout_seconds", 20)
 
     provider: str = _fm_settings.get("provider", "openrouter")
 
