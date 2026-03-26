@@ -53,9 +53,15 @@ def summarize_long_query(query: str) -> Tuple[str, bool]:
         cfg.max_tokens = config.max_tokens
         cfg.timeout_seconds = config.timeout_seconds
 
+        # Render user content bằng template (đã thêm vào prompts_config.yaml)
+        user_content = prompt_manager.render_user(
+            "long_query_summarizer",
+            query=query
+        )
+
         summarized = _call_gemini_api(
             system_prompt=prompt_manager.get_system("long_query_summarizer"),
-            user_content=query,
+            user_content=user_content,
             config_section=cfg,
         )
 

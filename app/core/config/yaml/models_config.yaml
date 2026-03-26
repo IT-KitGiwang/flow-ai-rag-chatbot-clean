@@ -22,9 +22,9 @@
 long_query_summarizer:
   provider: "openrouter"
   model: "google/gemini-2.5-flash-lite"
-  temperature: 0.2
-  max_tokens: 500
-  timeout_seconds: 6
+  temperature: 0.3
+  max_tokens: 400
+  timeout_seconds: 5
   fallbacks:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"
@@ -72,6 +72,7 @@ prompt_guard_deep:
   provider: "openrouter"
   model: "google/gemini-2.5-flash"
   temperature: 0.0
+  timeout_seconds: 6
   response_format: "json_object"
   fallbacks: []
 
@@ -85,7 +86,7 @@ multi_query:
   temperature: 0.5
   max_tokens: 250
   timeout_seconds: 8
-  num_variants: 3
+  num_variants: 2
   merge_strategy: "rrf"
   top_k_per_query: 5
   top_k_final: 7
