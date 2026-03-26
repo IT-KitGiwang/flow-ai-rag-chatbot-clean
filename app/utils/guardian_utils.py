@@ -149,10 +149,15 @@ class GuardianService:
             tc.max_tokens = getattr(config, 'max_tokens', 50)
             tc.timeout_seconds = getattr(config, 'timeout_seconds', 5)
 
+            user_content = prompt_manager.render_user(
+                "prompt_guard_deep",
+                user_query=text
+            )
+
             output = GuardianService._call_llm_api(
                 config_section=tc,
                 system_prompt=prompt_manager.get_system("prompt_guard_deep"),
-                user_content=text,
+                user_content=user_content,
             )
             print(f"   [Debug 2b] Qwen Guard trả về: '{output}'")
             

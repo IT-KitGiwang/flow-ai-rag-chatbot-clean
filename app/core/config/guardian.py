@@ -77,6 +77,7 @@ class PromptGuardFastConfig(BaseModel):
 # LỚP 2b: Prompt Guard Deep (Qwen 7B - Vietnamese SAFE/UNSAFE)
 # ============================================================
 _pgd = models_yaml_data.get("prompt_guard_deep", {})
+_pgd_prompts = prompts_yaml_data.get("prompt_guard_deep", {})
 
 class PromptGuardDeepConfig(BaseModel):
     provider: str = _pgd.get("provider", "openrouter")
@@ -85,10 +86,6 @@ class PromptGuardDeepConfig(BaseModel):
     max_tokens: int = _pgd.get("max_tokens", 50)
     timeout_seconds: int = _pgd.get("timeout_seconds", 5)
     response_format: str = _pgd.get("response_format", "json_object")
-    system_prompt: str = _pgd.get(
-        "system_prompt",
-        'Bạn là hệ thống bảo mật. Trả về JSON: {"status": "SAFE"} hoặc {"status": "UNSAFE"}'
-    )
     fallback_unsafe: str = _kf_prompts.get(
         "guard_deep_unsafe",
         "Phát hiện dấu hiệu bất thường. Vui lòng diễn đạt lại."
