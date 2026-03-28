@@ -158,37 +158,7 @@ _NODE_DISPLAY = {
     "response":     ("🎯",  "RESPONSE NODE (Final Answer)"),
 }
 
-# Node → danh sách key quan trọng cần hiển thị
-_NODE_KEYS = {
-    "fast_scan": [
-        "normalized_query", "original_query", "query_was_summarized",
-        "fast_scan_passed", "fast_scan_blocked_layer", "fast_scan_message",
-    ],
-    "context": ["standalone_query"],
-    "guard": [
-        "contextual_guard_passed", "contextual_guard_blocked_layer",
-        "contextual_guard_message",
-    ],
-    "intent": [
-        "intent", "intent_summary", "intent_action",
-        "program_level_filter", "program_name_filter",
-        "next_node", "response_source",
-    ],
-    "multi_query": ["multi_queries"],
-    "embedding": ["query_embeddings"],
-    "rag": [
-        "rag_context", "retrieved_chunks",
-    ],
-    "form": ["final_response", "response_source"],
-    "care": ["final_response", "response_source"],
-    "rag_search": [
-        "ufm_search_queries", "pr_search_query",
-        "web_search_results", "web_search_citations",
-        "search_cache_hit", "search_cache_similarity",
-        "final_response", "response_source",
-    ],
-    "response": ["final_response", "response_source"],
-}
+# _NODE_KEYS đã được loại bỏ để in FULL state thực tế trả về từ mỗi node
 
 
 # ══════════════════════════════════════════════════════════
@@ -500,9 +470,12 @@ def run_pipeline(user_query: str, chat_history: list = None):
                 # Status + Message
                 passed = print_node_status(node_name, merged_state, node_elapsed)
 
-                # State fields
-                keys = _NODE_KEYS.get(node_name, [])
-                print_state_delta(merged_state, keys)
+                # ── In toàn bộ State Delta (FULL STATE OUTPUT của Node) ──
+                if isinstance(state_delta, dict):
+                    full_keys = list(state_delta.keys())
+                    print_state_delta(state_delta, full_keys)
+                else:
+                    _log(f"    {_c('BLUE', 'Raw Delta'):>50s}  │  {_format_value(state_delta)}")
 
                 # Track timing
                 timings.append({

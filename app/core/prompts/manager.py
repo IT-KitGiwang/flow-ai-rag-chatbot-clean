@@ -31,11 +31,7 @@ class PromptManager:
         if yaml_path is None:
             # Ưu tiên file hợp nhất mới: config/yaml/prompts_config.yaml
             _new_path = Path(__file__).parent.parent / "config" / "yaml" / "prompts_config.yaml"
-            if _new_path.exists():
-                yaml_path = str(_new_path)
-            else:
-                # Backward compatible: dùng file cũ prompts.yaml
-                yaml_path = str(Path(__file__).parent / "prompts.yaml")
+            yaml_path = str(_new_path)
 
         if not os.path.exists(yaml_path):
             raise FileNotFoundError(
