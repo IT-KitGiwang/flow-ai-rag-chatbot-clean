@@ -18,9 +18,11 @@ Routing (graph_builder quyết định đường đi thực tế):
 """
 
 import time
+
 from app.services.langgraph.state import GraphState
 from app.services.intent_service import classify_intent
 from app.core.config import query_flow_config
+from app.core.config.contact_loader import get_contact_block
 from app.utils.query_analyzer import extract_all
 from app.utils.logger import get_logger
 
@@ -79,7 +81,6 @@ def _resolve_instant_response(intent_action: str, intent: str) -> tuple:
         return query_flow_config.response_templates.get_clarify(), "clarify_template"
 
     if intent_action == "BLOCK_FALLBACK":
-        from app.core.config.contact_loader import get_contact_block
         semantic_cfg = query_flow_config.semantic_router
         fallback_msg = semantic_cfg.fallbacks.get(
             intent,
@@ -92,23 +93,16 @@ def _resolve_instant_response(intent_action: str, intent: str) -> tuple:
 
 def intent_node(state: GraphState) -> GraphState:
     """
-    🧭 INTENT ROUTER NODE
+    Intent Router Node — Phân loại intent và điều hướng.
 
-    Input:
-      - state["standalone_query"]: Câu hỏi đã reformulate (từ Context Node)
-
-    Output:
-      - state["intent"]:          Tên intent ("HOC_PHI_HOC_BONG", ...)
-      - state["intent_summary"]:  Tóm tắt câu hỏi
-      - state["intent_action"]:   Action routing ("PROCEED_RAG", ...)
-      - state["next_node"]:       Node tiếp theo
-      - state["final_response"]:  Ghi sẵn nếu GREET / CLARIFY / BLOCK_FALLBACK
-      - state["response_source"]: Nguồn gốc final_response
+    Input:  state["standalone_query"]
+    Output: state["intent"], state["intent_action"], state["next_node"],
+            state["final_response"] (nếu GREET/CLARIFY/BLOCK)
     """
     standalone_query = state.get("standalone_query", state.get("user_query", ""))
     start_time = time.time()
 
-    # ── Phân loại intent ──
+    # Phân loại intent
     result = classify_intent(standalone_query=standalone_query)
     intent = result["intent"]
     intent_summary = result["intent_summary"]
@@ -116,7 +110,7 @@ def intent_node(state: GraphState) -> GraphState:
     next_node = _ACTION_TO_NODE.get(intent_action, "response")
     elapsed = time.time() - start_time
 
-    # ── Trích xuất metadata filter (Regex 0ms) ──
+    # Trích xuất metadata filter
     query_meta = extract_all(standalone_query)
     program_level = query_meta["program_level"]
     program_name = query_meta["program_name"]
@@ -131,37 +125,27 @@ def intent_node(state: GraphState) -> GraphState:
         elapsed, intent, intent_action, next_node,
     )
 
-    # ── Chung: Các tham số state cơ bản ──
     common = dict(
-        intent=intent,
-        intent_summary=intent_summary,
+        intent=intent, intent_summary=intent_summary,
         intent_action=intent_action,
-        program_level=program_level,
-        program_name=program_name,
+        program_level=program_level, program_name=program_name,
     )
 
-    # ════════════════════════════════════════════════════════
-    # INSTANT RESPONSE: GREET / CLARIFY / BLOCK_FALLBACK
-    # Trả ngay, không cần gọi RAG/Agent ($0, ~0ms)
-    # ════════════════════════════════════════════════════════
+    # Instant response: GREET / CLARIFY / BLOCK_FALLBACK
     instant = _resolve_instant_response(intent_action, intent)
     if instant is not None:
         final_response, response_source = instant
-        logger.info("Intent Node - %s -> Tra template/fallback", intent_action)
+        logger.info("Intent Node - %s -> template/fallback", intent_action)
         return _build_state(
-            state,
-            **common,
+            state, **common,
             next_node="response",
             final_response=final_response,
             response_source=response_source,
         )
 
-    # ════════════════════════════════════════════════════════
-    # PROCEED: Chuyển sang Agent Node (RAG / Form / Care)
-    # ════════════════════════════════════════════════════════
+    # Proceed: RAG / Form / Care
     return _build_state(
-        state,
-        **common,
+        state, **common,
         next_node=next_node,
         final_response=state.get("final_response", ""),
         response_source=state.get("response_source", ""),
