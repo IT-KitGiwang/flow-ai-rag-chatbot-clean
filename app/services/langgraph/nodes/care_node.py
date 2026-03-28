@@ -5,52 +5,48 @@ Vị trí trong Graph:
   [intent_node] → [care_node] → [response_node] → END
 
 Nhiệm vụ:
-  Nhận intent từ Intent Node (HO_TRO_SINH_VIEN hoặc KHIEU_NAI_GOP_Y).
-  Gọi Qwen Flash (qua OpenRouter) để sinh câu trả lời đồng cảm,
-  truyền thông tin liên hệ từ care_config.yaml vào system prompt.
+  Gọi Care LLM sinh câu trả lời đồng cảm, tự động gắn thông tin liên hệ
+  từ contact_loader (Single Source of Truth).
 
 Config sources:
   - Model config  → models_config.yaml section "care:"
   - System prompt → prompts_config.yaml section "care_node:"
-  - Contact info  → care_config.yaml
+  - Contact info  → contact_loader.get_contact_block()
   - API keys      → .env (qua query_flow_config.api_keys)
 
-Chi phí: Cực thấp (~0.001$/query, model nhỏ nhất)
-Latency: ~500ms-1s
-Fallback: Nếu LLM lỗi, trả thẳng contact info từ config (bypass cứng)
+Fallback: Nếu LLM lỗi → trả thẳng contact info (bypass cứng)
 """
 
 import json
 import time
 import urllib.request
-import urllib.error
+
+from jinja2 import Environment, BaseLoader
 
 from app.services.langgraph.state import GraphState
 from app.core.config import query_flow_config, prompts_yaml_data
 from app.core.config.care import CareConfig
+from app.core.config.contact_loader import get_contact_block
 from app.core.prompts import prompt_manager
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-# Khởi tạo config 1 lần duy nhất khi module load
+# ── Module-level singletons ──
 _care_config = CareConfig()
-
-# Tone guides từ prompts_config.yaml
 _tone_guides = prompts_yaml_data.get("care_node", {}).get("tone_guides", {})
+_jinja_env = Environment(loader=BaseLoader(), trim_blocks=True, lstrip_blocks=True)
 
 
 def _get_tone_guide(intent: str) -> str:
     """Lấy hướng dẫn giọng điệu theo intent từ prompts_config.yaml."""
-    intent_lower = intent.lower()
     return str(
-        _tone_guides.get(intent_lower, _tone_guides.get("default", ""))
+        _tone_guides.get(intent.lower(), _tone_guides.get("default", ""))
     ).strip()
 
 
 def _call_care_llm(system_prompt: str, user_query: str) -> str:
-    """Gọi Care LLM qua OpenRouter/Groq API — dùng config hợp nhất."""
+    """Gọi Care LLM qua OpenRouter/Groq API."""
     provider = _care_config.provider
     api_key = query_flow_config.api_keys.get_key(provider)
     base_url = query_flow_config.api_keys.get_base_url(provider)
@@ -90,7 +86,7 @@ def _call_care_llm(system_prompt: str, user_query: str) -> str:
 
 def care_node(state: GraphState) -> GraphState:
     """
-    Care Node — Gọi Qwen Flash sinh câu trả lời đồng cảm.
+    Care Node — Gọi Care LLM sinh câu trả lời đồng cảm.
 
     Input:
       - state["intent"]: Tên intent (HO_TRO_SINH_VIEN, KHIEU_NAI_GOP_Y)
@@ -111,50 +107,38 @@ def care_node(state: GraphState) -> GraphState:
         logger.info("Care Node - SKIP (intent_action='%s' != 'PROCEED_CARE')", intent_action)
         return state
 
-    # Lấy thông tin liên hệ CHÍNH THỨC từ contact_info.md (Single Source of Truth)
-    from app.core.config.contact_loader import get_contact_block
     contact_text = get_contact_block()
-
-    # Lấy tone guide theo intent (từ prompts_config.yaml)
     tone_guide = _get_tone_guide(intent)
 
-    # Gọi Care LLM
     try:
-        # Render system prompt từ prompts_config.yaml (biến Jinja2)
+        # Render system prompt (Jinja2: {{ tone_guide }})
         sys_prompt_raw = prompt_manager.get_system("care_node")
-
-        # System prompt now only needs {{ tone_guide }}
-        from jinja2 import Environment, BaseLoader
-        _env = Environment(loader=BaseLoader(), trim_blocks=True, lstrip_blocks=True)
-        sys_template = _env.from_string(sys_prompt_raw)
-        system_prompt = sys_template.render(
+        system_prompt = _jinja_env.from_string(sys_prompt_raw).render(
             tone_guide=tone_guide,
         )
 
         # Gọi LLM sinh 2-3 câu an ủi
         care_response_raw = _call_care_llm(system_prompt, user_query)
-        
-        # Tự động gắn thông tin liên hệ tĩnh (Saving LLM tokens & preventing hallucinations)
+
+        # Gắn thông tin liên hệ tĩnh (tiết kiệm token + chống hallucination)
         care_response = f"{care_response_raw.strip()}\n\n{contact_text}"
-        
+
         elapsed = time.time() - start_time
         logger.info(
-            "Care Node [%.3fs] Qwen OK, intent='%s', %d ky tu",
+            "Care Node [%.3fs] OK, intent='%s', %d ky tu",
             elapsed, intent, len(care_response)
         )
 
     except Exception as e:
         elapsed = time.time() - start_time
         logger.error(
-            "Care Node [%.3fs] Qwen loi: %s -> Fallback",
+            "Care Node [%.3fs] LLM loi: %s -> Fallback",
             elapsed, e, exc_info=True
         )
-        # Fallback: render fallback_message từ prompts_config.yaml
+        # Fallback: render từ prompts_config.yaml hoặc hardcoded
         fallback_raw = prompts_yaml_data.get("care_node", {}).get("fallback_message", "")
         if fallback_raw and "{{ contact_text }}" in str(fallback_raw):
-            from jinja2 import Environment, BaseLoader
-            _env = Environment(loader=BaseLoader(), trim_blocks=True, lstrip_blocks=True)
-            care_response = _env.from_string(str(fallback_raw)).render(
+            care_response = _jinja_env.from_string(str(fallback_raw)).render(
                 contact_text=contact_text
             )
         else:
