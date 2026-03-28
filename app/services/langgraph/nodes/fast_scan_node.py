@@ -1,5 +1,5 @@
 """
-Fast-Scan Node — Chốt 1: Chặn thô TRƯỚC khi gọi Gemini.
+Fast-Scan Node — Chốt 1: Chặn thô TRƯỚC khi gọi LLM.
 
 Vị trí trong Graph:
   [START] → [fast_scan_node] → [context_node] → ...
@@ -7,22 +7,17 @@ Vị trí trong Graph:
 
 Nhiệm vụ:
   Quét user_query thô bằng Regex + kiểm tra độ dài.
-  KHÔNG GỌI API (trừ trường hợp query dài cần tóm tắt).
-  Chi phí: $0 (bình thường) | ~$0.000005 (khi tóm tắt query dài)
+  KHÔNG GỌI API (trừ khi query dài cần tóm tắt).
 
 Layers:
-  Layer 0: Input Validation — Max 2000 ký tự (chống DoS/spam)
-           + Auto-summarize nếu >= 1999 chars (LLM tóm tắt)
-  Layer 1a: Keyword Filter — Từ cấm nhạy cảm (bạo lực, ma tuý, cờ bạc)
-  Layer 1b: Injection Filter — Prompt Injection/Jailbreak pattern
-
-Lợi ích:
-  - Query quá dài (> 2000) → CHẶN NGAY, không tốn tiền
-  - Query dài (1999-2000) → Tóm tắt bằng LLM nhẹ, giữ thông tin quan trọng
-  - Query rác/tấn công → CHẶN NGAY, không tốn tiền gọi Gemini
+  0a: Input Validation — Hard limit (chống DoS)
+  0b: Long Query Summarizer — Tóm tắt query dài bằng LLM nhẹ
+  1a: Keyword Filter — Từ cấm nhạy cảm
+  1b: Injection Filter — Prompt Injection / Jailbreak pattern
 """
 
 import time
+
 from app.services.langgraph.state import GraphState
 from app.utils.guardian_utils import GuardianService
 from app.utils.query_summarizer import summarize_long_query
@@ -33,117 +28,99 @@ from app.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _blocked_state(state, query, normalized, original_query,
+                   query_was_summarized, layer, label, msg, elapsed):
+    """Helper tạo state bị chặn — tránh duplicate giữa các layer."""
+    return {
+        **state,
+        "user_query": query,
+        "normalized_query": normalized,
+        "original_query": original_query,
+        "query_was_summarized": query_was_summarized,
+        "fast_scan_passed": False,
+        "fast_scan_blocked_layer": layer,
+        "fast_scan_message": f"[Fast-Scan {label} — {elapsed:.3f}s] {msg}",
+        "final_response": f"{msg}\n{get_contact_block()}",
+        "response_source": "fast_scan",
+    }
+
+
 def fast_scan_node(state: GraphState) -> GraphState:
     """
-    🟢 CHỐT 1: FAST-SCAN — Chặn thô trên user_query gốc.
+    Fast-Scan — Chặn thô trên user_query gốc.
 
     Input:  state["user_query"]
-    Output: state["fast_scan_passed"], state["fast_scan_blocked_layer"],
-            state["fast_scan_message"], state["normalized_query"],
-            state["original_query"], state["query_was_summarized"],
+    Output: state["fast_scan_passed"], state["normalized_query"],
+            state["original_query"], state["query_was_summarized"]
     """
     query = state.get("user_query", "")
     start_time = time.time()
-
     iv_config = query_flow_config.input_validation
     original_query = ""
     query_was_summarized = False
 
-    # ════════════════════════════════════════════════════════
-    # LAYER 0a: Hard Limit — Chống DoS (> 2000 ký tự → CHẶN)
-    # ════════════════════════════════════════════════════════
-    if len(query) > iv_config.max_input_chars:  
+    # ── Layer 0a: Hard Limit — Chống DoS ──
+    if len(query) > iv_config.max_input_chars:
         elapsed = time.time() - start_time
-        logger.info(
-            "FastScan L0a BLOCKED: %d chars > %d max (%.3fs)",
-            len(query), iv_config.max_input_chars, elapsed,
-        )
+        logger.info("FastScan L0a BLOCKED: %d chars > %d max (%.3fs)",
+                    len(query), iv_config.max_input_chars, elapsed)
         return {
             **state,
-            "normalized_query": query[:200].lower(),  # Chỉ normalize mẫu nhỏ cho log
+            "normalized_query": query[:200].lower(),
             "original_query": "",
             "query_was_summarized": False,
             "fast_scan_passed": False,
             "fast_scan_blocked_layer": 0,
-            "fast_scan_message": f"[Fast-Scan L0a — {elapsed:.3f}s] Chặn DoS: {len(query)} chars",
+            "fast_scan_message": f"[Fast-Scan L0a — {elapsed:.3f}s] Chan DoS: {len(query)} chars",
             "final_response": f"{iv_config.fallback_too_long}\n{get_contact_block()}",
             "response_source": "fast_scan",
         }
 
-    # ════════════════════════════════════════════════════════
-    # LAYER 0b: Long Query Summarizer (>= 1999 chars → LLM tóm tắt)
-    # ════════════════════════════════════════════════════════
+    # ── Layer 0b: Long Query Summarizer ──
     if len(query) >= iv_config.summarize_threshold:
-        logger.info(
-            "FastScan L0b: Query dài %d chars (>= %d) → gọi LLM tóm tắt...",
-            len(query), iv_config.summarize_threshold,
-        )
+        logger.info("FastScan L0b: Query dai %d chars (>= %d) -> tom tat...",
+                    len(query), iv_config.summarize_threshold)
         summarized, success = summarize_long_query(query)
 
-        original_query = query       # Lưu bản gốc
-        query = summarized           # Thay bằng bản tóm tắt
+        original_query = query
+        query = summarized
         query_was_summarized = True
 
         elapsed_sum = time.time() - start_time
         if success:
-            logger.info(
-                "FastScan L0b: Tóm tắt OK (%.3fs) | %d → %d chars | Tóm tắt: '%s'",
-                elapsed_sum, len(original_query), len(summarized), summarized[:120],
-            )
+            logger.info("FastScan L0b: OK (%.3fs) | %d -> %d chars",
+                        elapsed_sum, len(original_query), len(summarized))
         else:
-            logger.warning(
-                "FastScan L0b: LLM lỗi → fallback cắt cứng (%.3fs) | %d → %d chars",
-                elapsed_sum, len(original_query), len(summarized),
-            )
+            logger.warning("FastScan L0b: LLM loi -> fallback cat cung (%.3fs)",
+                           elapsed_sum)
 
-    # ── Chuẩn hóa teencode (lowercase + thay teencode) ──
+    # ── Chuẩn hóa teencode ──
     normalized = GuardianService.normalize_text(query)
 
-    # ════════════════════════════════════════════════════════
-    # LAYER 1a: Keyword Filter — Từ cấm nhạy cảm
-    # ════════════════════════════════════════════════════════
+    # ── Layer 1a: Keyword Filter ──
     is_valid, msg = GuardianService.check_layer_1_keyword_filter(normalized)
     if not is_valid:
         elapsed = time.time() - start_time
-        return {
-            **state,
-            "user_query": query,
-            "normalized_query": normalized,
-            "original_query": original_query,
-            "query_was_summarized": query_was_summarized,
-            "fast_scan_passed": False,
-            "fast_scan_blocked_layer": 1,
-            "fast_scan_message": f"[Fast-Scan L1a — {elapsed:.3f}s] {msg}",
-            "final_response": f"{msg}\n{get_contact_block()}",
-            "response_source": "fast_scan",
-        }
+        return _blocked_state(state, query, normalized, original_query,
+                              query_was_summarized, 1, "L1a", msg, elapsed)
 
-    # ════════════════════════════════════════════════════════
-    # LAYER 1b: Injection Filter — Prompt Injection/Jailbreak
-    # ════════════════════════════════════════════════════════
+    # ── Layer 1b: Injection Filter ──
     is_valid, msg = GuardianService.check_layer_1b_injection_filter(normalized)
     if not is_valid:
         elapsed = time.time() - start_time
-        return {
-            **state,
-            "user_query": query,
-            "normalized_query": normalized,
-            "original_query": original_query,
-            "query_was_summarized": query_was_summarized,
-            "fast_scan_passed": False,
-            "fast_scan_blocked_layer": 1,
-            "fast_scan_message": f"[Fast-Scan L1b — {elapsed:.3f}s] {msg}",
-            "final_response": f"{msg}\n{get_contact_block()}",
-            "response_source": "fast_scan",
-        }
+        return _blocked_state(state, query, normalized, original_query,
+                              query_was_summarized, 1, "L1b", msg, elapsed)
 
-    # ════════════════════════════════════════════════════════
-    # ✅ PASS — Cho qua Context Node (Gemini Lite reformulate)
-    # ════════════════════════════════════════════════════════
+    # ── PASS ──
     elapsed = time.time() - start_time
+    scan_msg = f"[Fast-Scan PASS — {elapsed:.3f}s] Sach, cho qua Context Node"
+    if query_was_summarized:
+        scan_msg = (
+            f"[Fast-Scan PASS — {elapsed:.3f}s] "
+            f"Query da tom tat ({len(original_query)} -> {len(query)} chars)"
+        )
 
-    # Cập nhật user_query nếu đã summarize (để các node sau dùng bản ngắn)
-    result_state = {
+    return {
         **state,
         "user_query": query,
         "normalized_query": normalized,
@@ -151,15 +128,5 @@ def fast_scan_node(state: GraphState) -> GraphState:
         "query_was_summarized": query_was_summarized,
         "fast_scan_passed": True,
         "fast_scan_blocked_layer": None,
-        "fast_scan_message": f"[Fast-Scan PASS — {elapsed:.3f}s] Sạch, cho qua Context Node",
+        "fast_scan_message": scan_msg,
     }
-
-    if query_was_summarized:
-        result_state["fast_scan_message"] = (
-            f"[Fast-Scan PASS — {elapsed:.3f}s] "
-            f"Query đã tóm tắt ({len(original_query)} → {len(query)} chars), cho qua Context Node"
-        )
-
-    return result_state
-
-

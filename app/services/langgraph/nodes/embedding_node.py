@@ -2,25 +2,17 @@
 Embedding Node — Nhúng standalone_query + multi_queries thành vectors.
 
 Vị trí trong Graph:
-  [multi_query_node] → [embedding_node] → [cache_node] → ...
+  [multi_query_node] → [embedding_node] → [rag_node] → ...
 
 Nhiệm vụ:
-  1. Gom standalone_query + multi_queries thành 1 batch (tối đa 4 câu)
-  2. Gọi API BGE-M3 (OpenRouter) 1 LẦN DUY NHẤT để nhúng batch
+  1. Gom standalone_query + multi_queries thành 1 batch
+  2. Gọi API BGE-M3 (OpenRouter) 1 lần duy nhất
   3. Trả về list vectors 1024D trong state["query_embeddings"]
 
-Model: baai/bge-m3 (OpenRouter)
-Chi phí: ~$0.00001/batch 4 câu
-Latency: ~300ms cho 4 câu
-
-Quy ước output:
-  query_embeddings[0] = vector của standalone_query  (Truy vấn chính)
-  query_embeddings[1] = vector của multi_queries[0]  (Biến thể 1)
-  query_embeddings[2] = vector của multi_queries[1]  (Biến thể 2)
-  query_embeddings[3] = vector của multi_queries[2]  (Biến thể 3)
-
-  Nếu multi_queries rỗng (Multi-Query bị tắt hoặc lỗi):
-  query_embeddings chỉ có 1 phần tử: [vector_standalone]
+Output convention:
+  query_embeddings[0] = standalone_query (chính)
+  query_embeddings[1..N] = multi_queries (biến thể)
+  Nếu multi_queries rỗng → chỉ có 1 vector.
 """
 
 import json
@@ -98,12 +90,10 @@ def _embed_batch(
                 continue
             raise RuntimeError(f"Embedding Network Error: {e}") from e
 
-    return []  # Không bao giờ tới đây
-
 
 def embedding_node(state: GraphState) -> GraphState:
     """
-    🔍 EMBEDDING NODE — Nhúng batch [standalone + biến thể] → vectors.
+    Embedding Node — Nhúng batch [standalone + biến thể] → vectors.
 
     Input:
       - state["standalone_query"]: Câu hỏi đã reformulate
