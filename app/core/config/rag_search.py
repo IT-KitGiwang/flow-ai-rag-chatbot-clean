@@ -1,26 +1,23 @@
 # app/core/config/rag_search.py
-# Cấu hình cho Proceed RAG Search Pipeline (Tách luồng PR và UFM Info)
-# Đọc từ: models_config.yaml (các section: pr_query, ufm_query, web_search, ...)
+# Cấu hình cho Proceed RAG Search Pipeline.
+# Config sources:
+#   models_config.yaml  → model / provider / temperature cho mỗi sub-node
+#   prompts_config.yaml → system prompts (KHÔNG lưu ở đây)
 
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel
 from app.core.config import models_yaml_data
 
-_rs_data = models_yaml_data
 
-# ============================================================
-# PROCEED RAG SEARCH PIPELINE (Master Toggle)
-# ============================================================
-_prs = _rs_data.get("proceed_rag_search", {})
+# ── Master Toggle ──
+_prs = models_yaml_data.get("proceed_rag_search", {})
 
 class ProceedRagSearchConfig(BaseModel):
     """Bật/tắt TOÀN BỘ luồng Web Search. Khi tắt, bot chỉ dùng DB nội bộ."""
     enabled: bool = _prs.get("enabled", True)
 
-# ============================================================
-# PR QUERY GENERATION (Dành cho PR Search)
-# ============================================================
-_pq = _rs_data.get("pr_query", {})
+
+# ── PR Query Generation ──
+_pq = models_yaml_data.get("pr_query", {})
 
 class PRQueryConfig(BaseModel):
     enabled: bool = _pq.get("enabled", True)
@@ -29,12 +26,10 @@ class PRQueryConfig(BaseModel):
     temperature: float = _pq.get("temperature", 0.4)
     max_tokens: int = _pq.get("max_tokens", 150)
     timeout_seconds: int = _pq.get("timeout_seconds", 6)
-    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
-# ============================================================
-# UFM DOMAIN MULTI-QUERY (Dành cho Info Search)
-# ============================================================
-_uq = _rs_data.get("ufm_query", {})
+
+# ── UFM Domain Multi-Query ──
+_uq = models_yaml_data.get("ufm_query", {})
 
 class UFMQueryConfig(BaseModel):
     enabled: bool = _uq.get("enabled", True)
@@ -43,12 +38,10 @@ class UFMQueryConfig(BaseModel):
     temperature: float = _uq.get("temperature", 0.2)
     max_tokens: int = _uq.get("max_tokens", 150)
     timeout_seconds: int = _uq.get("timeout_seconds", 6)
-    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
-# ============================================================
-# WEB SEARCH AGENT
-# ============================================================
-_ws = _rs_data.get("web_search", {})
+
+# ── Web Search Agent ──
+_ws = models_yaml_data.get("web_search", {})
 
 class WebSearchConfig(BaseModel):
     enabled: bool = _ws.get("enabled", True)
@@ -57,18 +50,16 @@ class WebSearchConfig(BaseModel):
     temperature: float = _ws.get("temperature", 0.1)
     max_tokens: int = _ws.get("max_tokens", 1500)
     timeout_seconds: int = _ws.get("timeout_seconds", 20)
-    ufm_domains: List[str] = _ws.get("ufm_domains", [
+    ufm_domains: list[str] = _ws.get("ufm_domains", [
         "ufm.edu.vn", "tuyensinh.ufm.edu.vn", "nhaphoc.ufm.edu.vn"
     ])
-    pr_domains: List[str] = _ws.get("pr_domains", [
+    pr_domains: list[str] = _ws.get("pr_domains", [
         "thanhnien.vn", "vnexpress.net"
     ])
-    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
-# ============================================================
-# SYNTHESIZER 1: INFO SYNTHESIZER (User-Centric)
-# ============================================================
-_syn_info = _rs_data.get("info_synthesizer", {})
+
+# ── Info Synthesizer (UFM Search) ──
+_syn_info = models_yaml_data.get("info_synthesizer", {})
 
 class InfoSynthesizerConfig(BaseModel):
     provider: str = _syn_info.get("provider", "openrouter")
@@ -76,12 +67,10 @@ class InfoSynthesizerConfig(BaseModel):
     temperature: float = _syn_info.get("temperature", 0.1)
     max_tokens: int = _syn_info.get("max_tokens", 1500)
     timeout_seconds: int = _syn_info.get("timeout_seconds", 20)
-    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
-# ============================================================
-# SYNTHESIZER 2: PR SYNTHESIZER
-# ============================================================
-_syn_pr = _rs_data.get("pr_synthesizer", {})
+
+# ── PR Synthesizer ──
+_syn_pr = models_yaml_data.get("pr_synthesizer", {})
 
 class PRSynthesizerConfig(BaseModel):
     provider: str = _syn_pr.get("provider", "openrouter")
@@ -89,12 +78,10 @@ class PRSynthesizerConfig(BaseModel):
     temperature: float = _syn_pr.get("temperature", 0.3)
     max_tokens: int = _syn_pr.get("max_tokens", 1500)
     timeout_seconds: int = _syn_pr.get("timeout_seconds", 20)
-    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
-# ============================================================
-# SANITIZER + VERIFIER
-# ============================================================
-_san = _rs_data.get("sanitizer", {})
+
+# ── Sanitizer + Verifier ──
+_san = models_yaml_data.get("sanitizer", {})
 
 class SanitizerConfig(BaseModel):
     provider: str = _san.get("provider", "openrouter")
@@ -103,13 +90,10 @@ class SanitizerConfig(BaseModel):
     max_tokens: int = _san.get("max_tokens", 800)
     timeout_seconds: int = _san.get("timeout_seconds", 15)
     max_loops: int = _san.get("max_loops", 2)
-    system_prompt: str = "" # Note: Moved to prompts_config.yaml
 
 
-# ============================================================
-# CONTEXT EVALUATOR (Self-RAG Gate — YES/NO, max_tokens=20)
-# ============================================================
-_eval = _rs_data.get("context_evaluator", {})
+# ── Context Evaluator (Self-RAG Gate — YES/NO) ──
+_eval = models_yaml_data.get("context_evaluator", {})
 
 class EvaluatorConfig(BaseModel):
     enabled: bool = _eval.get("enabled", True)
@@ -120,10 +104,8 @@ class EvaluatorConfig(BaseModel):
     timeout_seconds: int = _eval.get("timeout_seconds", 8)
 
 
-# ============================================================
-# CONTEXT CURATOR (Lọc/tóm tắt ngữ cảnh RAG — max_tokens=4000)
-# ============================================================
-_cur = _rs_data.get("context_curator", {})
+# ── Context Curator (Lọc ngữ cảnh RAG) ──
+_cur = models_yaml_data.get("context_curator", {})
 
 class CuratorConfig(BaseModel):
     enabled: bool = _cur.get("enabled", True)
@@ -134,10 +116,8 @@ class CuratorConfig(BaseModel):
     timeout_seconds: int = _cur.get("timeout_seconds", 12)
 
 
-# ============================================================
-# SEMANTIC SEARCH CACHE
-# ============================================================
-_sc = _rs_data.get("search_cache", {})
+# ── Semantic Search Cache ──
+_sc = models_yaml_data.get("search_cache", {})
 
 class SearchCacheConfig(BaseModel):
     enabled: bool = _sc.get("enabled", True)

@@ -1,15 +1,16 @@
 # app/core/config/intent.py
 # Cấu hình các lớp PHÂN LOẠI Ý ĐỊNH (Intent Classification)
-# Đọc cấu hình chi tiết từ: intent_config.yaml
+# Config sources:
+#   intent_config.yaml   → allowed_intents, vector_router, intent_validator
+#   models_config.yaml   → model / provider / temperature
+#   prompts_config.yaml  → fallback messages, system prompts
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Literal
+from typing import Literal
 from app.core.config import intent_yaml_data, models_yaml_data, prompts_yaml_data
 
 
-# ============================================================
-# LỚP 3.1: Vector Intent Router (Fast Semantic Search)
-# ============================================================
+# ── Lớp 3.1: Vector Intent Router (Fast Semantic Search) ──
 _vr = models_yaml_data.get("vector_router", {})
 _vr_cfg = intent_yaml_data.get("vector_router", {})
 
@@ -24,9 +25,7 @@ class VectorRouterConfig(BaseModel):
     )
 
 
-# ============================================================
-# LỚP 3 - Validator: Chống LLM sai chính tả Intent
-# ============================================================
+# ── Lớp 3 - Validator: Chống LLM sai chính tả Intent ──
 _iv_val = intent_yaml_data.get("intent_validator", {})
 
 class IntentValidatorConfig(BaseModel):
@@ -34,10 +33,7 @@ class IntentValidatorConfig(BaseModel):
     fallback_intent: str = _iv_val.get("fallback_intent", "KHONG_XAC_DINH")
 
 
-# ============================================================
-# LỚP 3.2: LLM Semantic Router (Deep Intent Classification)
-# Source of Truth: intent_config.yaml
-# ============================================================
+# ── Lớp 3.2: LLM Semantic Router (Deep Intent Classification) ──
 _sr = models_yaml_data.get("semantic_router", {})
 _sr_cfg = intent_yaml_data.get("semantic_router", {})
 _sr_fallbacks = prompts_yaml_data.get("intent_classification", {}).get("fallbacks", {})
@@ -50,11 +46,8 @@ class SemanticRouterConfig(BaseModel):
     max_tokens: int = _sr.get("max_tokens", 150)
     timeout_seconds: int = _sr.get("timeout_seconds", 12)
     response_format: Literal["json_object"] = _sr.get("response_format", "json_object")
-    
-    # System Prompt hướng dẫn LLM phân loại intent
-    system_prompt: str = "" # Note: Moved to prompts_config.yaml
-    
-    allowed_intents: List[str] = _sr_cfg.get(
+
+    allowed_intents: list[str] = _sr_cfg.get(
         "allowed_intents",
         [
             # Nhóm 1: Thông tin cốt lõi
@@ -82,10 +75,10 @@ class SemanticRouterConfig(BaseModel):
             "KHONG_XAC_DINH",
         ]
     )
-    
+
     # Fallback messages cho các intent nhóm 4 (trả về thẳng, không gọi RAG)
-    fallbacks: Dict[str, str] = _sr_fallbacks
-    
+    fallbacks: dict[str, str] = _sr_fallbacks
+
     fallback_out_of_scope: str = _block_fallbacks.get(
         "out_of_scope",
         "Câu hỏi nằm ngoài phạm vi hỗ trợ tuyển sinh UFM."

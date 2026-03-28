@@ -1,10 +1,9 @@
 # app/core/config/retriever.py
-# Pydantic config cho Hybrid Retriever (Vector + BM25 + RRF)
-# Đọc từ: retriever_config.yaml
+# Pydantic config cho Hybrid Retriever (Vector + BM25 + RRF + Parent).
+# Config source: retriever_config.yaml
 
 import os
 from pydantic import BaseModel, Field
-from typing import Optional
 from app.core.config import _load_yaml
 
 
@@ -25,7 +24,7 @@ class VectorSearchConfig(BaseModel):
     use_multi_query: bool = _vs.get("use_multi_query", False)
 
 
-# ── BM25 Search ──
+# ── BM25 Full-Text Search ──
 _bm = _retriever.get("bm25_search", {})
 
 class BM25SearchConfig(BaseModel):
@@ -35,7 +34,7 @@ class BM25SearchConfig(BaseModel):
     use_stored_tsvector: bool = _bm.get("use_stored_tsvector", False)
 
 
-# ── RRF ──
+# ── RRF (Reciprocal Rank Fusion) ──
 _rrf = _retriever.get("rrf", {})
 
 class RRFConfig(BaseModel):
@@ -66,30 +65,10 @@ class RetrieverDBConfig(BaseModel):
     query_timeout: int = _db.get("query_timeout", 10)
 
 
-# ── Filters ──
-_fl = _retriever.get("filters", {})
-
-class RetrieverFilterConfig(BaseModel):
-    only_active: bool = _fl.get("only_active", True)
-    academic_year: Optional[str] = _fl.get("academic_year", None)
-
-
-
-
-# ── Metadata Filter ──
-_mf = _retriever.get("metadata_filter", {})
-
-class MetadataFilterConfig(BaseModel):
-    filter_program_level: bool = _mf.get("filter_program_level", True)
-    filter_program_name: bool = _mf.get("filter_program_name", False)
-
-
 # ── Config tổng Retriever ──
 class RetrieverConfig(BaseModel):
     vector_search: VectorSearchConfig = VectorSearchConfig()
     bm25_search: BM25SearchConfig = BM25SearchConfig()
     rrf: RRFConfig = RRFConfig()
     parent_retrieval: ParentRetrievalConfig = ParentRetrievalConfig()
-    metadata_filter: MetadataFilterConfig = MetadataFilterConfig()
     db: RetrieverDBConfig = RetrieverDBConfig()
-    filters: RetrieverFilterConfig = RetrieverFilterConfig()
