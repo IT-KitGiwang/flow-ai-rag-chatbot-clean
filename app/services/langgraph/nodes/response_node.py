@@ -1,33 +1,17 @@
 """
-Response Node — LLM Phản Hồi Chính (Node Chốt Sale).
+Response Node — LLM Phản Hồi Chính (Node cuối cùng).
 
-Vị trí trong Graph (Node cuối cùng):
-  [rag_search / rag_node / intent_node] → [response_node] → END
+Vị trí trong Graph:
+  [rag_search / rag_node / intent_node / care / form] → [response_node] → END
 
 Nhiệm vụ:
-  1. Kiểm tra response_source: Nếu đã có final_response từ các node
-     trước (GREET / CLARIFY / BLOCK_FALLBACK / Guard layers) → Bypass.
-  2. Nếu response_source là context từ RAG/Web → Gọi Gemini 3.0 Flash
-     Preview sinh câu trả lời cuối cùng cho người dùng.
-  3. Ghi kết quả vào state["final_response"].
-
-Logic Bypass (KHÔNG gọi LLM — $0, ~0.001s):
-  - "greet_template"       → Lời chào sẵn
-  - "clarify_template"     → Hỏi lại sẵn
-  - "intent_block"         → Fallback block sẵn
-  - "fast_scan_block"      → Prompt Guard block sẵn
-  - "contextual_guard"     → Deep Guard block sẵn
-
-Logic Generate (GỌI LLM — ~$0.001, ~1-3s):
-  - "rag_db_only"          → Context chỉ từ DB (Evaluator phán YES)
-  - "rag_search_context"   → Context từ DB + Web Search
-  - Mọi trường hợp khác   → Sinh câu trả lời
-
-Model: google/gemini-3.0-flash-preview (via OpenRouter)
-Fallback: Tự động lùi model qua _call_gemini_api_with_fallback.
+  1. Nếu đã có final_response (GREET/CLARIFY/BLOCK/Guard/Care/Form) → Bypass
+  2. Nếu cần sinh câu trả lời từ context → Gọi Main Bot LLM
+  3. Ghi kết quả vào state["final_response"]
 """
 
 import time
+
 from app.services.langgraph.state import GraphState
 from app.services.langgraph.nodes.context_node import _call_gemini_api_with_fallback
 from app.core.config import query_flow_config
@@ -37,39 +21,45 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-
-# ═══════════════════════════════════════════════════════════
-# DANH SÁCH RESPONSE_SOURCE KHÔNG CẦN GỌI LLM
-# ═══════════════════════════════════════════════════════════
+# Response sources không cần gọi LLM
 _BYPASS_SOURCES = {
     "greet_template",
     "clarify_template",
     "care_template",
-    "form_template",              # Form Node đã soạn xong → bypass
+    "form_template",
     "intent_block",
-    "fast_scan",                  # Fast Scan chặn → bypass (matched node output)
+    "fast_scan",
     "contextual_guard",
     "keyword_filter",
     "input_validation",
-    # ⚠️ "rag_search_synthesized" KHÔNG bypass — Main Bot cần viết lại
-    # Synthesizer chỉ trích xuất dữ liệu thô, Main Bot chuyển thành câu trả lời thân thiện
 }
+
+
+def _fallback_response(existing: str, rag_context: str, error: bool = False) -> str:
+    """Tạo fallback response khi LLM rỗng hoặc lỗi."""
+    if existing:
+        return existing
+    if rag_context:
+        return rag_context
+    if error:
+        return (
+            "Xin lỗi bạn, hệ thống đang bảo trì tạm thời. "
+            "Bạn vui lòng thử lại sau giây lát hoặc liên hệ trực tiếp:\n"
+            f"{get_contact_block()}"
+        )
+    return (
+        "Xin lỗi bạn, mình chưa tìm thấy thông tin phù hợp. "
+        "Bạn có thể diễn đạt cụ thể hơn hoặc liên hệ trực tiếp:\n"
+        f"{get_contact_block()}"
+    )
 
 
 def response_node(state: GraphState) -> GraphState:
     """
-    🎯 RESPONSE NODE — Node Cuối Cùng của LangGraph.
+    Response Node — Bypass hoặc gọi Main Bot LLM.
 
-    Input:
-      - state["standalone_query"]:   Câu hỏi đã reformulate
-      - state["final_response"]:     Context / Template đã chuẩn bị từ node trước
-      - state["response_source"]:    Nguồn gốc (để quyết định Bypass hay Generate)
-      - state["rag_context"]:        Context thuần RAG (dự phòng)
-      - state["chat_history_text"]:  Lich sử hội thoại (để LLM hiểu ngữ cảnh)
-
-    Output:
-      - state["final_response"]:     Câu trả lời cuối cùng cho người dùng
-      - state["response_source"]:    Ghi lại nguồn (thêm "_generated" nếu gọi LLM)
+    Input:  state["standalone_query"], state["final_response"], state["response_source"]
+    Output: state["final_response"], state["response_source"]
     """
     start_time = time.time()
     response_source = state.get("response_source", "")
@@ -78,37 +68,29 @@ def response_node(state: GraphState) -> GraphState:
 
     logger.info("RESPONSE NODE - Source: %s, Existing: %d ky tu", response_source, len(existing_response))
 
-    # ══════════════════════════════════════════════════════════
-    # NHÁNH A: BYPASS — Đã có câu trả lời sẵn, không cần LLM
-    # ══════════════════════════════════════════════════════════
+    # Bypass — đã có câu trả lời sẵn
     if response_source in _BYPASS_SOURCES:
         elapsed = time.time() - start_time
         logger.info("RESPONSE NODE [%.3fs] BYPASS -> %s", elapsed, response_source)
-        return {
-            **state,
-        }
+        return state
 
-    # ══════════════════════════════════════════════════════════
-    # NHÁNH B: GENERATE — Gọi Gemini 3.0 Flash sinh câu trả lời
-    # ══════════════════════════════════════════════════════════
+    # Generate — gọi Main Bot LLM
     config = query_flow_config.main_bot
 
     if not config.enabled:
         elapsed = time.time() - start_time
-        logger.info("RESPONSE NODE [%.3fs] Main Bot disabled -> raw context", elapsed)
+        logger.info("RESPONSE NODE [%.3fs] Main Bot disabled", elapsed)
         return {
             **state,
             "final_response": existing_response or state.get("rag_context", ""),
             "response_source": "main_bot_disabled",
         }
 
-    # ── Chuẩn bị biến cho prompt ──
     rag_context = state.get("rag_context") or ""
     chat_history_text = state.get("chat_history_text") or ""
     web_citations = state.get("web_search_citations") or []
 
     try:
-        # ── Render prompt từ prompts.yaml ──
         sys_prompt = prompt_manager.get_system("main_bot")
         user_content = prompt_manager.render_user(
             "main_bot",
@@ -119,9 +101,9 @@ def response_node(state: GraphState) -> GraphState:
             web_citations=web_citations,
         )
 
-        logger.info("RESPONSE NODE - Goi LLM %s/%s, query='%s'", config.provider, config.model, standalone_query[:80])
+        logger.info("RESPONSE NODE - LLM %s/%s, query='%s'",
+                    config.provider, config.model, standalone_query[:80])
 
-        # ── Gọi API với fallback tự động ──
         generated = _call_gemini_api_with_fallback(
             system_prompt=sys_prompt,
             user_content=user_content,
@@ -137,45 +119,21 @@ def response_node(state: GraphState) -> GraphState:
                 **state,
                 "final_response": generated.strip(),
                 "response_source": f"{response_source}_generated",
-                }
-        else:
-            # LLM trả về rỗng → fallback về context thô + contact
-            logger.warning("RESPONSE NODE [%.3fs] LLM tra rong -> context tho", elapsed)
-            empty_fallback = (
-                existing_response or rag_context
-                or (
-                    "Xin lỗi bạn, mình chưa tìm thấy thông tin phù hợp cho câu hỏi này. "
-                    "Bạn có thể diễn đạt cụ thể hơn hoặc liên hệ trực tiếp:\n"
-                    f"{get_contact_block()}"
-                )
-            )
-            return {
-                **state,
-                "final_response": empty_fallback,
-                "response_source": f"{response_source}_fallback",
-                }
+            }
+
+        # LLM trả rỗng → fallback
+        logger.warning("RESPONSE NODE [%.3fs] LLM tra rong -> fallback", elapsed)
+        return {
+            **state,
+            "final_response": _fallback_response(existing_response, rag_context),
+            "response_source": f"{response_source}_fallback",
+        }
 
     except Exception as e:
         elapsed = time.time() - start_time
-        logger.error("RESPONSE NODE [%.3fs] Loi LLM: %s", elapsed, e, exc_info=True)
-
-        # Lỗi API → fallback trả context thô kèm contact info
-        fallback = existing_response or rag_context
-        if not fallback:
-            fallback = (
-                "Xin lỗi bạn, hệ thống đang bảo trì tạm thời để cập nhật định kì. "
-                "Bạn vui lòng thử lại sau giây lát hoặc liên hệ trực tiếp "
-                "để được hỗ trợ nhanh nhất nhé!\n"
-                f"{get_contact_block()}"
-            )
-
+        logger.error("RESPONSE NODE [%.3fs] LLM error: %s", elapsed, e, exc_info=True)
         return {
             **state,
-            "final_response": fallback,
+            "final_response": _fallback_response(existing_response, rag_context, error=True),
             "response_source": "main_bot_error",
         }
-
-
-def response_router(state: GraphState) -> str:
-    """Conditional Edge: response → end (luôn luôn kết thúc)."""
-    return "end"
