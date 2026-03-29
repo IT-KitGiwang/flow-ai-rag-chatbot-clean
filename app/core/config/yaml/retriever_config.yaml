@@ -7,14 +7,14 @@ retriever:
   # ── Cấu hình Vector Search (pgvector Cosine Similarity) ──
   vector_search:
     enabled: true
-    top_k: 20                         # Lấy top 20 chunks từ HNSW index
-    similarity_threshold: 0.85        # Ngưỡng tin cậy (cosine > 0.85)
+    top_k: 7                         # Lấy top 5 chunks từ HNSW index
+    similarity_threshold: 0.65        # Ngưỡng tin cậy (cosine > 0.65)
     use_multi_query: true            # true = dùng tất cả embeddings (multi-query boost)
 
   # ── Cấu hình BM25 Full-Text Search (Postgres tsvector) ──
   bm25_search:
     enabled: true
-    top_k: 20                         # Lấy top 20 chunks từ FTS
+    top_k: 5                         # Lấy top 5 chunks từ FTS
     ts_config: "simple"               # Config tokenizer Postgres (simple = không stemming)
     use_stored_tsvector: true        # true = dùng cột content_tsvector (cần chạy migration)
 
@@ -22,11 +22,13 @@ retriever:
   rrf:
     k: 60                             # Hằng số RRF: score = 1 / (k + rank)
                                       # k=60 là giá trị chuẩn paper gốc
+    standalone_boost: 1.2             # Priority boost cho standalone_query vector
+                                      # 1.0 = không ưu tiên, 1.2 = ưu tiên nhẹ 20%
 
   # ── Parent Chunk Retrieval ──
   parent_retrieval:
-    top_parents: 5                    # Lấy đúng 5 Parent Chunks duy nhất
-    max_parent_chars: 8000            # Giới hạn tổng ký tự cho toàn bộ context
+    top_parents: 4                    # Lấy đúng 4 Parent Chunks duy nhất
+    max_parent_chars: 5000            # Giới hạn tổng ký tự cho toàn bộ context
     include_metadata: true            # Gắn section_path, program_name vào context
 
   # ── Metadata Filter ──

@@ -88,8 +88,8 @@ multi_query:
   timeout_seconds: 8
   num_variants: 2
   merge_strategy: "rrf"
-  top_k_per_query: 5
-  top_k_final: 7
+  top_k_per_query: 4
+  top_k_final: 4
   fallbacks:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"
@@ -102,7 +102,7 @@ embedding:
   provider: "openrouter"
   model: "baai/bge-m3"
   dimensions: 1024
-  batch_size: 4
+  batch_size: 3
   fallbacks: []
 
 

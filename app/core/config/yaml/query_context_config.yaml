@@ -12,7 +12,7 @@
 # BỘ NHỚ HỘI THOẠI (Sliding Window Memory)
 # ----------------------------------------------------------
 memory:
-  max_history_turns: 10
+  max_history_turns: 2
   max_tokens_per_message: 400
   include_system_summary: false
 

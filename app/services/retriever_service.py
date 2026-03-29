@@ -256,36 +256,35 @@ def search_bm25(
 # ══════════════════════════════════════════════════════════
 # RRF — Reciprocal Rank Fusion
 # ══════════════════════════════════════════════════════════
-def rrf_merge(
-    vector_results: list,
-    bm25_results: list,
+def rrf_merge_weighted(
+    ranked_lists: list,
     k: int = 60,
 ) -> list:
     """
-    Gộp 2 danh sách kết quả bằng Reciprocal Rank Fusion.
+    Gộp N danh sách kết quả bằng Weighted Reciprocal Rank Fusion.
 
-    Công thức: RRF_score(d) = Σ 1 / (k + rank_i(d))
-      - k = 60 (giá trị chuẩn từ paper gốc Cormack et al. 2009)
-      - rank_i = ranking của document d trong danh sách i (1-indexed)
+    Args:
+        ranked_lists: [(results_list, weight), ...]
+            - weight = 1.0 cho nguồn bình thường
+            - weight = 1.3 cho standalone_query (priority boost)
+        k: Hằng số RRF (mặc định 60, paper gốc Cormack et al. 2009)
+
+    Công thức: RRF_score(d) = Σ weight_i / (k + rank_i(d))
     """
     rrf_scores: dict = {}     # chunk_id → total RRF score
     chunk_data: dict = {}     # chunk_id → metadata dict
 
-    # ── Tính RRF cho Vector results ──
-    for rank, item in enumerate(vector_results, start=1):
-        cid = item["chunk_id"]
-        rrf_scores[cid] = rrf_scores.get(cid, 0.0) + (1.0 / (k + rank))
-        chunk_data[cid] = item
+    for results, weight in ranked_lists:
+        for rank, item in enumerate(results, start=1):
+            cid = item["chunk_id"]
+            rrf_scores[cid] = rrf_scores.get(cid, 0.0) + (weight / (k + rank))
+            # Giữ bản có cosine score cao nhất (ưu tiên vector > bm25)
+            if cid not in chunk_data:
+                chunk_data[cid] = item
+            elif item.get("source") == "vector" and chunk_data[cid].get("source") != "vector":
+                chunk_data[cid] = item
 
-    # ── Tính RRF cho BM25 results ──
-    for rank, item in enumerate(bm25_results, start=1):
-        cid = item["chunk_id"]
-        rrf_scores[cid] = rrf_scores.get(cid, 0.0) + (1.0 / (k + rank))
-        # Nếu chunk đã có từ vector, giữ bản từ vector (có cosine score)
-        if cid not in chunk_data:
-            chunk_data[cid] = item
-
-    # ── Sắp xếp theo RRF score giảm dần ──
+    # Sắp xếp theo RRF score giảm dần
     sorted_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)
 
     merged = []
@@ -548,7 +547,7 @@ def hybrid_retrieve(
         logger.info("Retriever - program_name_filter='%s'", program_name)
 
     # ════════════════════════════════════════════════════════
-    # Bước 1+2: Vector + BM25 SONG SONG (ThreadPoolExecutor)
+    # Bước 1+2: Vector (standalone + variants) + BM25 SONG SONG
     # ════════════════════════════════════════════════════════
     use_multi = (
         query_embeddings
@@ -556,43 +555,75 @@ def hybrid_retrieve(
         and getattr(cfg.vector_search, 'use_multi_query', False)
     )
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        # ── Vector Search ──
-        if use_multi:
-            logger.info("Retriever - Multi-Query Vector Search (%d embeddings, top %d)...",
-                        len(query_embeddings), cfg.vector_search.top_k)
-            vec_future = pool.submit(
-                search_vector_multi_query,
-                query_embeddings, cfg, program_level, program_name,
+    standalone_boost = cfg.rrf.standalone_boost
+
+    if use_multi:
+        # ── Chạy SONG SONG: standalone + từng variant + BM25 ──
+        logger.info(
+            "Retriever - Multi-Query Vector Search (%d embeddings, top %d each, boost=%.1f)...",
+            len(query_embeddings), cfg.vector_search.top_k, standalone_boost,
+        )
+        with ThreadPoolExecutor(max_workers=min(len(query_embeddings) + 1, 5)) as pool:
+            # Mỗi embedding chạy search riêng, mỗi cái lấy top_k
+            vec_futures = [
+                pool.submit(search_vector, emb, cfg, program_level, program_name)
+                for emb in query_embeddings
+            ]
+            bm25_future = pool.submit(
+                search_bm25, query_text, cfg, program_level, program_name,
             )
-        else:
+
+            vec_results_per_query = [f.result() for f in vec_futures]
+            bm25_results = bm25_future.result()
+
+        # Log
+        for i, vr in enumerate(vec_results_per_query):
+            tag = "standalone" if i == 0 else f"variant_{i}"
+            logger.info("Retriever - Vector [%s] tim duoc: %d chunks", tag, len(vr))
+        logger.info("Retriever - BM25 tim duoc: %d chunks", len(bm25_results))
+
+        total_vec = sum(len(vr) for vr in vec_results_per_query)
+
+        # ── Bước 3: Weighted RRF Merge ──
+        # standalone → boost, variants + BM25 → weight 1.0
+        rrf_lists = []
+        for i, vr in enumerate(vec_results_per_query):
+            weight = standalone_boost if i == 0 else 1.0
+            rrf_lists.append((vr, weight))
+        rrf_lists.append((bm25_results, 1.0))
+
+        logger.info("Retriever - Weighted RRF Merge (k=%d, standalone_boost=%.1f)...",
+                    cfg.rrf.k, standalone_boost)
+        merged = rrf_merge_weighted(rrf_lists, k=cfg.rrf.k)
+
+    else:
+        # ── Single vector + BM25 (không có biến thể) ──
+        with ThreadPoolExecutor(max_workers=2) as pool:
             logger.info("Retriever - Vector Search (top %d)...", cfg.vector_search.top_k)
             vec_future = pool.submit(
-                search_vector,
-                query_embedding, cfg, program_level, program_name,
+                search_vector, query_embedding, cfg, program_level, program_name,
             )
+            logger.info("Retriever - BM25 Search (top %d)...", cfg.bm25_search.top_k)
+            bm25_future = pool.submit(
+                search_bm25, query_text, cfg, program_level, program_name,
+            )
+            vector_results = vec_future.result()
+            bm25_results = bm25_future.result()
 
-        # ── BM25 Search ──
-        logger.info("Retriever - BM25 Search (top %d)...", cfg.bm25_search.top_k)
-        bm25_future = pool.submit(
-            search_bm25,
-            query_text, cfg, program_level, program_name,
+        logger.info("Retriever - Vector tim duoc: %d chunks", len(vector_results))
+        logger.info("Retriever - BM25 tim duoc: %d chunks", len(bm25_results))
+        total_vec = len(vector_results)
+
+        # RRF không boost (chỉ 2 lists)
+        merged = rrf_merge_weighted(
+            [(vector_results, 1.0), (bm25_results, 1.0)],
+            k=cfg.rrf.k,
         )
 
-        # ── Đợi kết quả ──
-        vector_results = vec_future.result()
-        bm25_results = bm25_future.result()
+    if total_vec > 0 and merged:
+        top_score = merged[0].get("score") or merged[0].get("rrf_score", 0)
+        logger.debug("  Top1 score: %.4f", top_score)
 
-    logger.info("Retriever - Vector tim duoc: %d chunks", len(vector_results))
-    logger.info("Retriever - BM25 tim duoc: %d chunks", len(bm25_results))
-
-    if vector_results:
-        top_score = vector_results[0]["score"]
-        logger.debug("  Top1 Cosine: %.4f", top_score)
-
-    # ── Bước 3: RRF Merge ──
-    logger.info("Retriever - RRF Merge (k=%d)...", cfg.rrf.k)
-    merged = rrf_merge(vector_results, bm25_results, k=cfg.rrf.k)
     logger.info("Retriever - Tong unique chunks sau RRF: %d", len(merged))
 
     # ── Bước 4: Extract Parent IDs ──
@@ -609,7 +640,7 @@ def hybrid_retrieve(
     rag_context = format_rag_context(parent_docs, cfg)
 
     elapsed = time.time() - start_time
-    top1_cosine = vector_results[0]["score"] if vector_results else 0.0
+    top1_cosine = merged[0].get("score", 0.0) if merged else 0.0
     logger.info(
         "Retriever - Hybrid Search hoan tat (%.3fs) - %d ky tu, top1=%.4f",
         elapsed, len(rag_context), top1_cosine
@@ -619,7 +650,7 @@ def hybrid_retrieve(
     # Observability Metrics
     # ════════════════════════════════════════════════════════
     metrics = {
-        "vector_count": len(vector_results),
+        "vector_count": total_vec,
         "bm25_count": len(bm25_results),
         "rrf_unique": len(merged),
         "top1_cosine": top1_cosine,
@@ -636,7 +667,7 @@ def hybrid_retrieve(
         "retrieved_chunks": merged,
         "parent_ids": parent_ids,
         "parent_docs": parent_docs,
-        "vector_count": len(vector_results),
+        "vector_count": total_vec,
         "bm25_count": len(bm25_results),
         "top1_cosine_score": top1_cosine,
         "elapsed": elapsed,

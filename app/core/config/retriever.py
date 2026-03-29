@@ -39,6 +39,7 @@ _rrf = _retriever.get("rrf", {})
 
 class RRFConfig(BaseModel):
     k: int = _rrf.get("k", 60)
+    standalone_boost: float = _rrf.get("standalone_boost", 1.0)
 
 
 # ── Parent Retrieval ──
