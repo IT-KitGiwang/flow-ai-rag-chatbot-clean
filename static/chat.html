@@ -150,6 +150,23 @@
     .bubble th { background:var(--surface-2); font-weight:600; }
     .bubble hr { border:none; border-top:1px solid var(--border); margin:10px 0; }
 
+    /* ── Doc Link Card ── */
+    .doc-link {
+      display:flex; align-items:center; gap:10px;
+      padding:8px 12px; margin:8px 0;
+      background:var(--surface-2); border:1px solid var(--border);
+      border-radius:var(--radius-sm); text-decoration:none !important;
+      transition:all .2s;
+    }
+    .doc-link:hover {
+      border-color:var(--primary); background:var(--primary-glow);
+      transform:translateY(-1px);
+    }
+    .doc-link .doc-icon { font-size:20px; flex-shrink:0; }
+    .doc-link .doc-info { display:flex; flex-direction:column; overflow:hidden; }
+    .doc-link .doc-title { font-size:13px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .doc-link .doc-path { font-size:11px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
     /* ── Stream progress ── */
     .stream-box { display:flex; align-items:flex-start; gap:10px; align-self:flex-start; max-width:82%; animation:msgIn .3s ease; }
     .stream-box .bubble { background:var(--bot-bg); border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px; min-width:180px; }
@@ -283,15 +300,52 @@ function md(text) {
   if (!text) return '';
   let h = text;
 
+  // ── Step 0: Protect {{ SOURCE: ... }} doc references ──
+  const docRefs = [];
+  h = h.replace(/\{\{\s*SOURCE:([\s\S]*?)\}\}/gi, (match) => {
+    const idx = docRefs.length;
+    
+    const sourceMatch = match.match(/SOURCE:\s*([^\r\n]+)/i);
+    const pathMatch = match.match(/PATH\s*\(([^\)]+)\)/i);
+    const linkMatch = match.match(/\[([^\]]+)\]\(([^\)]+)\)/);
+    
+    const source = sourceMatch ? sourceMatch[1].trim() : 'Tài liệu tham khảo';
+    let path = pathMatch ? pathMatch[1].trim() : '';
+    if (path.toUpperCase().startsWith('NẰM Ở MỤC:')) {
+       path = path.substring(10).trim();
+    }
+    let url = linkMatch ? linkMatch[2].trim() : '#';
+    if (url.startsWith('/')) url = window.location.origin + url;
+    
+    docRefs.push({ source, path, url });
+    return `⟬DOC_REF${idx}⟭`;
+  });
+
+  const links = [];
+
+  // ── Step 0.5: Linkify bare source citations in text ──
+  h = h.replace(/\[([^\]]+)\](?!\s*\()/g, (match, innerText) => {
+    // Try to find a matching docRef
+    const doc = docRefs.find(d => innerText.includes(d.source) || d.source.includes(innerText.trim()));
+    if (doc) {
+      const idx = links.length;
+      const safeText = innerText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+      links.push({ text: safeText, url: doc.url });
+      return `⟬LINK${idx}⟭`;
+    }
+    return match;
+  });
+
 // ── Step 1: Protect markdown links TRƯỚC khi escape HTML ──
   // Extract [text](url) → placeholder, xử lý cuối cùng
-  const links = [];
   // Regex nâng cấp: Chống gộp link, chấp nhận khoảng trắng giữa ] và (, chống lỗi ký tự ngoặc
-  h = h.replace(/\[([\s\S]*?)\]\s*\(([-a-zA-Z0-9@:%_\+.~#?&//=]+)\)/g, (_, linkText, url) => {
+  h = h.replace(/\[([^\]]+)\]\s*\(([^)\n]+)\)/g, (_, linkText, url) => {
     const idx = links.length;
     // Bắt buộc sanitize lại đoạn text của link để nó an toàn khi chèn vào cuối
     const safeText = linkText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-    links.push({ text: safeText, url: url });
+    let finalUrl = url.trim();
+    if (finalUrl.startsWith('/')) finalUrl = window.location.origin + finalUrl;
+    links.push({ text: safeText, url: finalUrl });
     return `⟬LINK${idx}⟭`;
   });
 
@@ -364,6 +418,18 @@ function md(text) {
   h = h.replace(/<br>(<hr>)/g,'$1').replace(/(<hr>)<br>/g,'$1');
 
   // ── Step 3: Restore links ──
+  // Doc refs -> custom card
+  h = h.replace(/⟬DOC_REF(\d+)⟭/g, (_, idx) => {
+    const doc = docRefs[parseInt(idx)];
+    return `<a href="${doc.url}" target="_blank" rel="noopener" class="doc-link">
+      <span class="doc-icon">📄</span>
+      <span class="doc-info">
+        <span class="doc-title">${doc.source}</span>
+        ${doc.path ? `<span class="doc-path">${doc.path}</span>` : ''}
+      </span>
+    </a>`;
+  });
+
   // Markdown links → clickable <a> with 🔗 icon
   h = h.replace(/⟬LINK(\d+)⟭/g, (_, idx) => {
     const link = links[parseInt(idx)];
@@ -447,7 +513,9 @@ async function sendMessage() {
         blocked: result.blocked,
         blocked_reason: result.blocked_reason,
       });
-      chatHistory.push({role:'assistant', content:result.response});
+      let contentToSave = result.history_content || result.response;
+      contentToSave = contentToSave.replace(/\{\{\s*SOURCE:[\s\S]*?\}\}/gi, '').trim();
+      chatHistory.push({role:'assistant', content: contentToSave});
     } else {
       appendBot('⚠️ Không nhận được phản hồi.', {source:'error'});
     }
