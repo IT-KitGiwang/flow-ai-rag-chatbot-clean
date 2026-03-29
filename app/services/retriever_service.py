@@ -459,13 +459,14 @@ def format_rag_context(
                 break
 
         # Tạo Session Tài liệu Tạm (5 phút)
-        # Lưu lại tiêu đề, nội dung gốc để giao diện hiển thị
+        # Dùng chunk_id làm session_id (thay vì random UUID)
+        chunk_id = doc.get("chunk_id", "")
         doc_session_data = {
             "title": doc.get("extra", {}).get("title") or doc.get("source") or f"Tài liệu {i}",
             "content": doc["content"], # Lưu full nội dung ban đầu không giới hạn char len
             "metadata": doc.get("extra", {})
         }
-        session_id = create_document_session(doc_session_data)
+        session_id = create_document_session(doc_session_data, session_id=str(chunk_id))
         temp_link = f"/view-document/{session_id}"
 
         # Gắn metadata header chuẩn xác theo format yêu cầu:

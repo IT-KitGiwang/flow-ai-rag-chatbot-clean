@@ -1,14 +1,16 @@
 import uuid
 from cachetools import TTLCache
 
-# Cache lưu trữ dữ liệu tài liệu mổi session. (TTLCache max 1000 items, TTL 300s = 5 phút)
-document_cache = TTLCache(maxsize=1000, ttl=300)
+# Cache lưu trữ dữ liệu tài liệu mỗi session. (TTLCache max 500 items, TTL 300s = 5 phút)
+document_cache = TTLCache(maxsize=500, ttl=300)
 
-def create_document_session(document_data: dict) -> str:
+def create_document_session(document_data: dict, session_id: str = None) -> str:
     """
-    Tạo session_id tạm thời cho nội dung tài liệu (tồn tại 5 phút).
+    Tạo session cho nội dung tài liệu (tồn tại 5 phút).
+    Nếu session_id được truyền vào (vd: chunk_id) → dùng luôn, không random.
     """
-    session_id = str(uuid.uuid4())
+    if not session_id:
+        session_id = str(uuid.uuid4())
     # Lưu toàn bộ dữ liệu (bao gồm nội dung 'content' và metadata) vào cache
     document_cache[session_id] = document_data
     return session_id
