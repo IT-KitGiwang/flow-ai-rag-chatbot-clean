@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS knowledge_chunks (
     content           TEXT NOT NULL,                   -- Nội dung văn bản đầy đủ
     char_count        INTEGER DEFAULT 0,              -- Số ký tự (ProcessedChunk.char_count)
     embedding         VECTOR(1024),                   -- Vector BGE-M3 1024 chiều
+    content_tsvector  TSVECTOR,                       -- Stored tsvector cho BM25 (GIN index)
 
     -- ════════════════════════════════════════════════════════
     -- HIERARCHY — Parent-Child Relationship
@@ -136,6 +137,27 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_chunks_dedup
 -- 3.5. GIN Index trên JSONB extra (cho truy vấn linh hoạt)
 CREATE INDEX IF NOT EXISTS idx_chunks_extra_gin
     ON knowledge_chunks USING gin (extra);
+
+-- 3.6. GIN Index cho BM25 Full-Text Search (stored tsvector)
+CREATE INDEX IF NOT EXISTS idx_chunks_content_tsvector_gin
+    ON knowledge_chunks USING gin (content_tsvector);
+
+
+-- ────────────────────────────────────────────────────────────
+-- 3.7. TRIGGER: Tự động tính content_tsvector khi INSERT/UPDATE
+-- ────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION update_content_tsvector()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.content_tsvector = to_tsvector('simple', COALESCE(NEW.content, ''));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_content_tsvector
+    BEFORE INSERT OR UPDATE OF content ON knowledge_chunks
+    FOR EACH ROW
+    EXECUTE FUNCTION update_content_tsvector();
 
 
 -- ────────────────────────────────────────────────────────────

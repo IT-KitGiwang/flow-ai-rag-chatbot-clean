@@ -30,7 +30,7 @@ from chunk_Process.chunk_algorithms.utils import (
 # ================================================================
 # YAML CONFIG LOADER
 # ================================================================
-_CONFIG_PATH = Path(__file__).resolve().parents[2] / "app" / "core" / "config" / "chunker_config.yaml"
+_CONFIG_PATH = Path(__file__).resolve().parents[2] / "app" / "core" / "config" / "yaml" / "chunker_config.yaml"
 
 # Fallback nếu YAML không tồn tại hoặc thiếu key
 _FALLBACK_CONFIG = {
@@ -38,10 +38,10 @@ _FALLBACK_CONFIG = {
     "base_url": "https://openrouter.ai/api/v1",
     "model": "baai/bge-m3",
     "dimensions": 1024,
-    "similarity_threshold": 0.55,
-    "overlap_tokens": 80,
+    "similarity_threshold": 0.57,
+    "overlap_tokens": 120,
     "base_block_tokens": 100,
-    "min_chunk_tokens": 50,
+    "min_chunk_tokens": 70,
     "max_chunk_tokens": 800,
     "max_tokens_per_api_call": 6500,
     "api_batch_size": 40,
@@ -460,8 +460,12 @@ class SemanticChunkerBGE:
             auto_meta["program_level"] = parsed["program_level"]
         if parsed["academic_year"]:
             auto_meta["academic_year"] = parsed["academic_year"]
-        if parsed["header_context"]:
-            auto_meta.setdefault("extra", {})["header_context"] = parsed["header_context"]
+        # Nap TAT CA fields tu YAML Frontmatter vao extra dict
+        header_extra = parsed.get("extra", {})
+        if parsed.get("header_context"):
+            header_extra["header_context"] = parsed["header_context"]
+        if header_extra:
+            auto_meta.setdefault("extra", {}).update(header_extra)
 
         extra = metadata_extra or {}
         program_name = extra.get("program_name")
@@ -472,6 +476,8 @@ class SemanticChunkerBGE:
                 auto_meta["ma_nganh"] = ma_nganh
 
         merged_extra = {**auto_meta, **extra}
+        if "extra" in auto_meta and "extra" in extra:
+            merged_extra["extra"] = {**auto_meta["extra"], **extra["extra"]}
 
         # Prefix cho mỗi chunk con (để bơm context parent vào)
         section_path = extra.get("section_path", "")
@@ -558,11 +564,17 @@ class SemanticChunkerBGE:
             auto_meta["program_level"] = parsed["program_level"]
         if parsed["academic_year"]:
             auto_meta["academic_year"] = parsed["academic_year"]
-        if parsed["header_context"]:
-            auto_meta.setdefault("extra", {})["header_context"] = parsed["header_context"]
+        # Nap TAT CA fields tu YAML Frontmatter vao extra dict
+        header_extra = parsed.get("extra", {})
+        if parsed.get("header_context"):
+            header_extra["header_context"] = parsed["header_context"]
+        if header_extra:
+            auto_meta.setdefault("extra", {}).update(header_extra)
 
         extra = metadata_extra or {}
         merged_extra = {**auto_meta, **extra}
+        if "extra" in auto_meta and "extra" in extra:
+            merged_extra["extra"] = {**auto_meta["extra"], **extra["extra"]}
 
         # Tạo context prefix
         section_path = extra.get("section_path", "")

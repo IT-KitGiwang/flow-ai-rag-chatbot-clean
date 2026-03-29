@@ -1,4 +1,10 @@
-Ngày hiệu lực: Null
+---
+doc_type: thongtinchung
+doc_id: quytrinhdanhgia-luanvan-thacsi
+title: "Mã số quy trình: QT/SĐH/06"
+program_level: thac_si
+keywords: [thạc sĩ, cao học, tuyển sinh]
+---
 # QUY TRÌNH CHẤT LƯỢNG
 # ĐÁNH GIÁ LUẬN VĂN/ĐỀ ÁN THẠC SĨ
 Mã số quy trình: QT/SĐH/06

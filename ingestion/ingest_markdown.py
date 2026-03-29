@@ -219,12 +219,15 @@ class PgVectorDB:
                 }
 
                 try:
+                    # SAVEPOINT: Chi rollback 1 chunk loi, giu nguyen cac chunk khac
+                    cur.execute("SAVEPOINT chunk_insert")
                     cur.execute(insert_sql, params)
+                    cur.execute("RELEASE SAVEPOINT chunk_insert")
                     inserted += 1
                 except Exception as e:
-                    # Log nhưng không crash toàn bộ batch
+                    # Rollback CHI chunk nay, KHONG rollback toan bo batch
+                    cur.execute("ROLLBACK TO SAVEPOINT chunk_insert")
                     print(f"    ⚠️  Lỗi insert chunk {meta.chunk_id[:8]}...: {e}")
-                    self.conn.rollback()
                     continue
 
         self.conn.commit()
@@ -568,7 +571,7 @@ def run_ingestion(
     print(f"   Files:             {len(file_stats)}")
     print(f"   Chunks tổng:       {len(all_chunks)}")
     print(f"   Chunks mới insert: {inserted}")
-    print(f"   Chunks bỏ qua:    {len(skipped_chunks) if 'skipped_chunks' in dir() else 0} (đã có trong DB)")
+    print(f"   Chunks bỏ qua:    {len(skipped_chunks) if 'skipped_chunks' in locals() else 0} (đã có trong DB)")
     print(f"{'═' * 70}")
 
 

@@ -1,19 +1,21 @@
 # app/core/config/intent.py
 # Cấu hình các lớp PHÂN LOẠI Ý ĐỊNH (Intent Classification)
-# Đọc cấu hình chi tiết từ: intent_config.yaml
+# Config sources:
+#   intent_config.yaml   → allowed_intents, vector_router, intent_validator
+#   models_config.yaml   → model / provider / temperature
+#   prompts_config.yaml  → fallback messages, system prompts
 
 from pydantic import BaseModel, Field
-from typing import List, Dict, Literal
-from app.core.config import intent_yaml_data
+from typing import Literal
+from app.core.config import intent_yaml_data, models_yaml_data, prompts_yaml_data
 
 
-# ============================================================
-# LỚP 3.1: Vector Intent Router (Fast Semantic Search)
-# ============================================================
-_vr = intent_yaml_data.get("vector_router", {})
+# ── Lớp 3.1: Vector Intent Router (Fast Semantic Search) ──
+_vr = models_yaml_data.get("vector_router", {})
+_vr_cfg = intent_yaml_data.get("vector_router", {})
 
 class VectorRouterConfig(BaseModel):
-    enabled: bool = _vr.get("enabled", True)
+    enabled: bool = _vr_cfg.get("enabled", True)
     provider: str = _vr.get("provider", "openrouter")
     model: str = _vr.get("model", "baai/bge-m3")
     dimensions: int = _vr.get("dimensions", 1024)
@@ -23,9 +25,7 @@ class VectorRouterConfig(BaseModel):
     )
 
 
-# ============================================================
-# LỚP 3 - Validator: Chống LLM sai chính tả Intent
-# ============================================================
+# ── Lớp 3 - Validator: Chống LLM sai chính tả Intent ──
 _iv_val = intent_yaml_data.get("intent_validator", {})
 
 class IntentValidatorConfig(BaseModel):
@@ -33,27 +33,21 @@ class IntentValidatorConfig(BaseModel):
     fallback_intent: str = _iv_val.get("fallback_intent", "KHONG_XAC_DINH")
 
 
-# ============================================================
-# LỚP 3.2: LLM Semantic Router (Deep Intent Classification)
-# Source of Truth: intent_config.yaml
-# ============================================================
-_sr = intent_yaml_data.get("semantic_router", {})
+# ── Lớp 3.2: LLM Semantic Router (Deep Intent Classification) ──
+_sr = models_yaml_data.get("semantic_router", {})
+_sr_cfg = intent_yaml_data.get("semantic_router", {})
+_sr_fallbacks = prompts_yaml_data.get("intent_classification", {}).get("fallbacks", {})
+_block_fallbacks = prompts_yaml_data.get("fallback_messages", {})
 
 class SemanticRouterConfig(BaseModel):
     provider: str = _sr.get("provider", "openrouter")
     model: str = _sr.get("model", "qwen/qwen-2.5-7b-instruct")
     temperature: float = _sr.get("temperature", 0.0)
+    max_tokens: int = _sr.get("max_tokens", 150)
+    timeout_seconds: int = _sr.get("timeout_seconds", 12)
     response_format: Literal["json_object"] = _sr.get("response_format", "json_object")
-    
-    # System Prompt hướng dẫn LLM phân loại intent
-    system_prompt: str = _sr.get(
-        "system_prompt",
-        'Bạn là hệ thống Định tuyến Ý định cho chatbot tuyển sinh UFM. '
-        'Phân loại câu hỏi vào đúng 1 intent và tóm tắt. '
-        'Trả về JSON: {"intent": "TEN_INTENT", "summary": "tóm tắt"}'
-    )
-    
-    allowed_intents: List[str] = _sr.get(
+
+    allowed_intents: list[str] = _sr_cfg.get(
         "allowed_intents",
         [
             # Nhóm 1: Thông tin cốt lõi
@@ -68,9 +62,8 @@ class SemanticRouterConfig(BaseModel):
             "DOI_SONG_SINH_VIEN",
             "SO_SANH_TRUONG",
             "CO_HOI_VIEC_LAM",
-            # Nhóm 3: Chăm sóc & Khủng hoảng
-            "HO_TRO_TAM_LY",
-            "TU_VAN_BO_HOC",
+            # Nhóm 3: Chăm sóc & Hỗ trợ sinh viên
+            "HO_TRO_SINH_VIEN",
             "KHIEU_NAI_GOP_Y",
             # Nhóm 4: Bảo vệ hệ thống
             "BOI_NHO_DOI_THU",
@@ -82,11 +75,11 @@ class SemanticRouterConfig(BaseModel):
             "KHONG_XAC_DINH",
         ]
     )
-    
+
     # Fallback messages cho các intent nhóm 4 (trả về thẳng, không gọi RAG)
-    fallbacks: Dict[str, str] = _sr.get("fallbacks", {})
-    
-    fallback_out_of_scope: str = _sr.get(
-        "fallback_out_of_scope",
+    fallbacks: dict[str, str] = _sr_fallbacks
+
+    fallback_out_of_scope: str = _block_fallbacks.get(
+        "out_of_scope",
         "Câu hỏi nằm ngoài phạm vi hỗ trợ tuyển sinh UFM."
     )
