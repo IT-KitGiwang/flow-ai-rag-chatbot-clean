@@ -13,6 +13,7 @@ import json
 import yaml
 from app.services.langgraph.nodes.context_node import _call_gemini_api_with_fallback
 from app.core.config.form_config import form_cfg
+from app.core.prompts import prompt_manager
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,27 +26,7 @@ _MAUDON_DIR = os.path.join(
     "data", "unstructured", "markdown", "maudon",
 )
 
-# ── System prompt cho Form Selector ──
-_SELECTOR_SYSTEM_PROMPT = """Bạn là module phân loại mẫu đơn hành chính cho Đại học Tài chính - Marketing (UFM).
 
-NHIỆM VỤ:
-Đọc CÂU HỎI của người dùng và DANH SÁCH MẪU ĐƠN CÓ SẴN.
-Xác định người dùng cần BAO NHIÊU mẫu đơn (tối đa 3) và chọn file phù hợp cho từng yêu cầu.
-
-QUY TẮC:
-1. Phân tích NGỮ NGHĨA câu hỏi, đối chiếu với TITLE từng mẫu đơn.
-2. Nếu user yêu cầu NHIỀU đơn (VD: "cho em đơn tiến sĩ và giấy cam đoan") → trả về nhiều item.
-3. Nếu CÓ mẫu phù hợp → dùng đúng filename.
-4. Nếu KHÔNG có mẫu phù hợp nhưng user vẫn yêu cầu → dùng "NONE" làm filename, kèm mô tả loại đơn.
-5. Tối đa 3 item. Trả JSON thuần túy, KHÔNG giải thích.
-
-VÍ DỤ:
-- User: "Cho em đơn tiến sĩ" → {"forms": [{"filename": "dondangkitiensi.md", "description": "Đơn đăng ký tiến sĩ"}]}
-- User: "Đơn tiến sĩ và giấy cam đoan" → {"forms": [{"filename": "dondangkitiensi.md", "description": "Đơn đăng ký tiến sĩ"}, {"filename": "Giấy cam đoan.md", "description": "Giấy cam đoan"}]}
-- User: "Đơn hủy môn" → {"forms": [{"filename": "NONE", "description": "Đơn xin hủy đăng ký môn học"}]}
-- User: "Đơn thạc sĩ, đề cương và đơn bảo lưu" → {"forms": [{"filename": "mẪU ĐƠN...md", ...}, {"filename": "Mẫu đề cương.md", ...}, {"filename": "NONE", "description": "Đơn xin bảo lưu kết quả học tập"}]}
-
-ĐỊNH DẠNG: {"forms": [{"filename": "xxx.md", "description": "yyy"}, ...]}"""
 
 
 def _scan_templates() -> list[dict]:
@@ -110,11 +91,10 @@ def select_forms(standalone_query: str) -> list[dict]:
 
     catalog_text = _build_catalog_text(templates)
 
-    user_prompt = (
-        f"CÂU HỎI CỦA NGƯỜI DÙNG:\n{standalone_query}\n\n"
-        f"DANH SÁCH MẪU ĐƠN CÓ SẴN (chỉ chọn từ đây):\n{catalog_text}\n\n"
-        f"Xác định user cần bao nhiêu đơn, chọn file phù hợp cho từng yêu cầu. "
-        f"Nếu không có mẫu → dùng filename \"NONE\" kèm description."
+    user_prompt = prompt_manager.render_user(
+        "form_selector",
+        standalone_query=standalone_query,
+        catalog_text=catalog_text,
     )
 
     class _SelectorConfig:
@@ -126,7 +106,7 @@ def select_forms(standalone_query: str) -> list[dict]:
 
     try:
         raw = _call_gemini_api_with_fallback(
-            system_prompt=_SELECTOR_SYSTEM_PROMPT,
+            system_prompt=prompt_manager.get_system("form_selector"),
             user_content=user_prompt,
             config_section=_SelectorConfig(),
             node_key="form",

@@ -24,7 +24,7 @@ long_query_summarizer:
   model: "google/gemini-2.5-flash-lite"
   temperature: 0.3
   max_tokens: 400
-  timeout_seconds: 5
+  timeout_seconds: 6
   fallbacks:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"
@@ -48,10 +48,10 @@ prompt_guard_fast:
 # ══════════════════════════════════════════════════════════════
 query_reformulation:
   provider: "openrouter"
-  model: "google/gemini-2.0-flash-001"
+  model: "google/gemini-2.5-flash-lite"
   temperature: 0.2
   max_tokens: 250
-  timeout_seconds: 7
+  timeout_seconds: 3
   skip_if_no_history: true
   fallbacks:
     - provider: "openrouter"
@@ -59,10 +59,10 @@ query_reformulation:
 
 auto_summarize:
   provider: "openrouter"
-  temperature: 0.0
+  temperature: 0.1
   model: "google/gemini-2.5-flash"
-  max_tokens: 140
-  timeout_seconds: 5
+  max_tokens: 170
+  timeout_seconds: 3
 
 
 # ══════════════════════════════════════════════════════════════
@@ -123,7 +123,7 @@ semantic_router:
   model: "google/gemini-2.5-flash"
   temperature: 0.0
   response_format: "json_object"
-  max_tokens: 300
+  max_tokens: 50
   timeout_seconds: 5
   fallbacks:
     - provider: "openrouter"
@@ -144,23 +144,6 @@ context_evaluator:
   fallbacks:
     - provider: "openrouter"
       model: "qwen/qwen-2.5-7b-instruct"
-
-# ══════════════════════════════════════════════════════════════
-# ❽b CONTEXT CURATOR — Gemini 2.5 Flash lọc ngữ cảnh RAG
-#     Chạy sau RAG Node, tóm tắt/lọc info hữu ích, bỏ noise
-#     ⚠️ PHẢI có max_tokens lớn vì output là đoạn văn chi tiết
-# ══════════════════════════════════════════════════════════════
-context_curator:
-  enabled: true
-  provider: "openrouter"
-  model: "google/gemini-2.5-flash"
-  temperature: 0.0
-  max_tokens: 4000            # Output chi tiết, KHÔNG được cắt ngắn
-  timeout_seconds: 12
-  fallbacks:
-    - provider: "openrouter"
-      model: "qwen/qwen-2.5-7b-instruct"
-
 
 # ══════════════════════════════════════════════════════════════
 # ❾ PROCEED RAG SEARCH — Web-Augmented RAG Pipeline
@@ -310,21 +293,21 @@ form:
   provider: "openrouter"
   # Bước 1: LLM chọn 1-3 mẫu đơn phù hợp từ metadata title
   selector:
-    model: "google/gemini-2.0-flash-001"
+    model: "google/gemini-2.5-flash-lite"
     temperature: 0.0
     max_tokens: 200           # Đủ cho JSON 3 items
     timeout_seconds: 5
   # Bước 2: Trích xuất thông tin cá nhân từ lịch sử chat
   extractor:
-    model: "google/gemini-2.5-flash"
+    model: "google/gemini-2.5-flash-lite"
     temperature: 0.0
     max_tokens: 800
     timeout_seconds: 10
   # Bước 3: Soạn thảo văn bản hành chính
   drafter:
     model: "google/gemini-2.5-flash"
-    temperature: 0.4               # Có template → bám sát
-    temperature_no_template: 0.3   # Không template → sáng tạo vừa đủ
+    temperature: 0.2               # Có template → bám sát
+    temperature_no_template: 0.2   # Không template → sáng tạo vừa đủ
     max_tokens: 4000
     timeout_seconds: 20
   fallbacks:

@@ -283,12 +283,15 @@ function md(text) {
   if (!text) return '';
   let h = text;
 
-  // ── Step 1: Protect markdown links TRƯỚC khi escape HTML ──
+// ── Step 1: Protect markdown links TRƯỚC khi escape HTML ──
   // Extract [text](url) → placeholder, xử lý cuối cùng
   const links = [];
-  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, linkText, url) => {
+  // Regex nâng cấp: Chống gộp link, chấp nhận khoảng trắng giữa ] và (, chống lỗi ký tự ngoặc
+  h = h.replace(/\[([\s\S]*?)\]\s*\(([-a-zA-Z0-9@:%_\+.~#?&//=]+)\)/g, (_, linkText, url) => {
     const idx = links.length;
-    links.push({ text: linkText, url: url });
+    // Bắt buộc sanitize lại đoạn text của link để nó an toàn khi chèn vào cuối
+    const safeText = linkText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+    links.push({ text: safeText, url: url });
     return `⟬LINK${idx}⟭`;
   });
 

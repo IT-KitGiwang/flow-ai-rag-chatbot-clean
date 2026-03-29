@@ -67,29 +67,22 @@ def _extract_json(raw: str) -> dict | None:
 def _validate_parsed(parsed: dict, allowed_intents: set, fallback: str) -> tuple:
     """
     Validate kết quả đã parse từ LLM.
-    Trả về (intent, summary, is_safe) đã qua kiểm tra.
+    Field summary và status đã bị gỡ bỏ để tăng tốc LLM,
+    hàm trả về string rỗng và True mặc định để giữ nguyên signature.
     """
-    status  = str(parsed.get("status", "SAFE")).strip().upper()
-    intent  = str(parsed.get("intent",  "")).strip()
-    summary = str(parsed.get("summary", "")).strip()
-
-    is_safe = (status == "SAFE")
-
-    # Nếu unsafe thì ép về intent rác để chặn ngay
-    if not is_safe:
-        return "TAN_CONG_HE_THONG", summary, False
+    intent = str(parsed.get("intent", "")).strip()
 
     if not intent or intent not in allowed_intents:
-        return fallback, summary or "", True
+        return fallback, "", True
 
-    return intent, summary, True
+    return intent, "", True
 
 
 # ================================================================
 # GỌI API LLM (Dùng chung cho cả Primary và Backup)
 # ================================================================
 def _call_llm(
-    standalone_query: str,
+    user_prompt: str,
     system_prompt: str,
     api_key: str,
     base_url: str,
@@ -112,7 +105,7 @@ def _call_llm(
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": standalone_query},
+            {"role": "user",   "content": user_prompt},
         ],
         "temperature": temperature,
         "response_format": {"type": "json_object"},
@@ -129,6 +122,7 @@ def _call_llm(
         result = json.loads(resp.read().decode("utf-8"))
 
     return result["choices"][0]["message"]["content"]
+
 
 
 # ================================================================
@@ -188,10 +182,20 @@ def classify_by_llm(standalone_query: str) -> tuple:
 
         start_t = time.time()
         try:
+            # Render user prompt từ config YAML (phần mới thêm)
+            # Nếu trong yaml chưa có user_prompt, nó sẽ trả về raw string, 
+            # nên fallback cho an toàn:
+            rendered_user = prompt_manager.render_user(
+                "intent_classification", 
+                standalone_query=standalone_query
+            )
+            if not rendered_user:
+                rendered_user = standalone_query
+
             # Ưu tiên lấy max_tokens/temperature từ config gốc
             # hoặc ghi đè cho phù hợp với intent classification
             raw = _call_llm(
-                standalone_query=standalone_query,
+                user_prompt=rendered_user,
                 system_prompt=prompt_manager.get_system("intent_classification"),
                 api_key=api_key,
                 base_url=base_url,

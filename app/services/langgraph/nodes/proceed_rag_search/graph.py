@@ -211,6 +211,7 @@ def proceed_rag_search_pipeline(state: GraphState) -> GraphState:
         is_sufficient = evaluate_rag_context(
             standalone_query=standalone_query,
             rag_context=rag_context,
+            multi_queries=state.get("multi_queries", []),
         )
 
         if is_sufficient:

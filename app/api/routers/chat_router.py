@@ -220,3 +220,21 @@ async def stream_message(body: ChatRequest, request: Request):
             "X-Accel-Buffering": "no",  # Nginx: tắt buffer
         },
     )
+
+
+# ══════════════════════════════════════════════════════════
+# DOCUMENT SESSION — Xem file tạm thời (5 phút)
+# ══════════════════════════════════════════════════════════
+@router.get(
+    "/document/{session_id}",
+    summary="Lấy nội dung tài liệu gốc từ Session ID tạm thời (5 phút)",
+)
+async def get_document_by_session(session_id: str):
+    from app.utils.document_session import get_document_session
+    doc_data = get_document_session(session_id)
+    if not doc_data:
+        raise HTTPException(
+            status_code=404,
+            detail="Tài liệu đã hết hạn bảo mật (sau 5 phút) hoặc không tìm thấy. Bạn vui lòng chat lại với Bot để lấy link mới."
+        )
+    return {"status": "success", "data": doc_data}

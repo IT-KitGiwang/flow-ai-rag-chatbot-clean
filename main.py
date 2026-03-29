@@ -76,6 +76,16 @@ async def chat_ui():
     return {"error": "Chat UI not found. Check static/chat.html"}
 
 
+# ── Document Viewer UI ──
+@app.get("/view-document/{session_id}", tags=["Doc Viewer"], include_in_schema=False)
+async def view_document_page(session_id: str):
+    """Serve Document Viewer UI."""
+    html_path = _static_dir / "doc_viewer.html"
+    if html_path.exists():
+        return FileResponse(str(html_path), media_type="text/html")
+    return {"error": "Doc Viewer UI not found. Check static/doc_viewer.html"}
+
+
 # ── Health Check ──
 @app.get("/health", tags=["System"])
 async def health_check():

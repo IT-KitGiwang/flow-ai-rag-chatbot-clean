@@ -440,7 +440,10 @@ def format_rag_context(
     """
     Gộp nội dung parent docs thành 1 chuỗi text có trích dẫn cấu trúc.
     Cắt ngắn nếu tổng vượt max_parent_chars.
+    Tạo link đọc tài liệu tạm thời (session ID).
     """
+    from app.utils.document_session import create_document_session
+    
     pr_cfg = cfg.parent_retrieval
     parts = []
     total_chars = 0
@@ -456,57 +459,42 @@ def format_rag_context(
             else:
                 break
 
-        # Gắn metadata header trích dẫn cấu trúc (Tên văn bản + Mục + Ngành + URL)
+        # Tạo Session Tài liệu Tạm (5 phút)
+        # Lưu lại tiêu đề, nội dung gốc để giao diện hiển thị
+        doc_session_data = {
+            "title": doc.get("extra", {}).get("title") or doc.get("source") or f"Tài liệu {i}",
+            "content": doc["content"], # Lưu full nội dung ban đầu không giới hạn char len
+            "metadata": doc.get("extra", {})
+        }
+        session_id = create_document_session(doc_session_data)
+        temp_link = f"/view-document/{session_id}"
+
+        # Gắn metadata header chuẩn xác theo format yêu cầu:
+        # {{ SOURCE: TÊN FILE
+        # PATH (NẰM Ở MỤC:...)
         if pr_cfg.include_metadata:
-            citation_parts = []
             extra = doc.get("extra") or {}
+            
+            # Tên file/văn bản
+            doc_title = extra.get("title") or doc.get("source") or "Tài liệu hệ thống"
+            
+            # Path
+            section_path = doc.get("section_path") or "Không rõ"
+            formatted_path = section_path.replace(" > ", " > ")
+            
+            # Bậc đào tạo
+            program_level = doc.get("program_level") or "Chung"
 
-            # Tên văn bản chính thức (từ extra.title hoặc source filename)
-            doc_title = extra.get("title") or ""
-            source = doc.get("source") or ""
-            if doc_title:
-                citation_parts.append(f"Văn bản: {doc_title}")
-            elif source:
-                citation_parts.append(f"Tài liệu: {source}")
-
-            # Số công văn (từ extra.doc_number)
-            doc_number = extra.get("doc_number") or ""
-            if doc_number:
-                citation_parts.append(f"Số: {doc_number}")
-
-            section_path = doc.get("section_path") or ""
-            if section_path:
-                formatted_path = section_path.replace(" > ", " > ")
-                citation_parts.append(formatted_path)
-
-            section_name = doc.get("section_name") or ""
-            if section_name:
-                citation_parts.append(f"Mục: {section_name}")
-
-            program_name = doc.get("program_name") or ""
-            if program_name:
-                citation_parts.append(f"Ngành: {program_name}")
-
-            ma_nganh = doc.get("ma_nganh") or ""
-            if ma_nganh:
-                citation_parts.append(f"Mã ngành: {ma_nganh}")
-
-            academic_year = doc.get("academic_year") or ""
-            if academic_year:
-                citation_parts.append(f"Năm: {academic_year}")
-
-            # URL nguồn (từ extra.source_url)
-            source_url = extra.get("source_url") or ""
-            if source_url:
-                citation_parts.append(f"Link: {source_url}")
-
-            if citation_parts:
-                citation = " | ".join(citation_parts)
-                parts.append(f"[Nguồn {i} — {citation}]\n{content}")
-            else:
-                parts.append(f"[Nguồn {i}]\n{content}")
+            # Render template CHUẨN XÁC
+            header = (
+                f"{i}.{{{{ SOURCE: {doc_title}\n"
+                f"PATH (NẰM Ở MỤC: {formatted_path})\n"
+                f"BẬC ĐÀO TẠO: {program_level}\n"
+                f"LINK CHI TIẾT DÀNH CHO DOC_VIEWER: [{doc_title}]({temp_link}) }}}}\n\n"
+            )
+            parts.append(header + content)
         else:
-            parts.append(f"[Nguồn {i}]\n{content}")
+            parts.append(f"{i}.{{{{ LINK ĐỌC FILE CHI TIẾT: {temp_link} }}}}\n\n{content}")
 
         total_chars += len(content)
 

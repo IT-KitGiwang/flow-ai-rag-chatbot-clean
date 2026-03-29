@@ -32,6 +32,7 @@ logger = get_logger(__name__)
 def evaluate_rag_context(
     standalone_query: str,
     rag_context: str,
+    multi_queries: list = None,
 ) -> bool:
     """
     🧠 CONTEXT EVALUATOR — Đánh giá ngữ cảnh DB có đủ trả lời không.
@@ -39,6 +40,7 @@ def evaluate_rag_context(
     Args:
         standalone_query: Câu hỏi đã reformulate.
         rag_context: Chuỗi text từ 5 Parent Chunks gộp lại.
+        multi_queries: Danh sách các câu hỏi phụ.
 
     Returns:
         True  → DB đủ thông tin, BỎ QUA Web Search.
@@ -64,6 +66,7 @@ def evaluate_rag_context(
         user_content = prompt_manager.render_user(
             "context_evaluator",
             standalone_query=standalone_query,
+            multi_queries=multi_queries or [],
             rag_context=rag_context,
         )
 
